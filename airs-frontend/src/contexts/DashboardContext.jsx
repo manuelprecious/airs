@@ -54,6 +54,120 @@ export const DashboardProvider = ({ children }) => {
     }
   }, [backendUrl]);
 
+  // Get detailed metrics for a specific service
+  const fetchServiceMetrics = useCallback(async (serviceId) => {
+    try {
+      const response = await fetch(`${backendUrl}/api/services/${serviceId}/metrics?_t=${Date.now()}`);
+      if (!response.ok) throw new Error('Failed to fetch metrics');
+      return await response.json();
+    } catch (error) {
+      console.error(`Failed to fetch metrics for service ${serviceId}:`, error);
+      return null;
+    }
+  }, [backendUrl]);
+
+  // Poll backend for real state and metric changes
+  const pollBackendState = useCallback(async () => {
+    if (!backendAvailable) return;
+
+    try {
+      // Get basic services list
+      const servicesResponse = await fetch(`${backendUrl}/api/services?_t=${Date.now()}`);
+      if (!servicesResponse.ok) return;
+      const basicServices = await servicesResponse.json();
+
+      // Get detailed metrics for each service
+      const servicesWithDetails = await Promise.all(
+        basicServices.map(async (basicService) => {
+          const details = await fetchServiceMetrics(basicService.id);
+          return {
+            ...basicService,
+            metrics: details?.metrics || basicService.metrics
+          };
+        })
+      );
+
+      setDashboardData(prevData => {
+        if (!prevData || !prevData.services) return prevData;
+
+        const updatedServices = servicesWithDetails.map(backendService => {
+          // Map backend status to frontend status
+          const statusMap = {
+            'healthy': 'HEALTHY',
+            'warning': 'WARNING', 
+            'critical': 'CRITICAL'
+          };
+          
+          const newStatus = backendService.remediationInProgress 
+            ? 'REMEDIATING' 
+            : statusMap[backendService.status] || 'HEALTHY';
+
+          // Use REAL backend metrics with ServiceCard-compatible property names
+          const realMetrics = {
+            cpu: backendService.metrics?.cpu || 0,
+            memory: backendService.metrics?.memory || 0,
+            latency: backendService.metrics?.latency || 0,
+            error_rate: backendService.metrics?.error_rate || 0,
+            disk_io_wait: backendService.metrics?.throughput ? 
+              Math.max(0, 100 - (backendService.metrics.throughput / 12)) : 0
+          };
+
+          // Map to frontend metric display names
+          const metricMap = {
+            cpu: 'CPU_Load',
+            memory: 'Memory_Use', 
+            latency: 'Latency_ms',
+            error_rate: 'Error_Rate',
+            disk_io_wait: 'Disk_IO_Wait'
+          };
+
+          // Determine the most critical metric
+          const metricEntries = Object.entries(realMetrics);
+          const [primaryMetricKey, primaryValue] = metricEntries.reduce((mostCritical, [metric, value]) => {
+            if (!mostCritical) return [metric, value];
+            return value > mostCritical[1] ? [metric, value] : mostCritical;
+          }, ['cpu', 0]);
+
+          const primaryMetric = metricMap[primaryMetricKey] || 'CPU_Load';
+
+          // Find existing service to preserve history
+          const existingService = prevData.services.find(s => s.id === backendService.id);
+          const existingHistory = existingService?.history || Array(MAX_HISTORY).fill(primaryValue);
+          
+          // Update history with new value
+          const newHistory = [...existingHistory.slice(1), primaryValue];
+
+          const alertId = backendService.status === 'critical' 
+            ? `ALERT-${backendService.id}` 
+            : backendService.status === 'warning'
+            ? `WARN-${backendService.id}`
+            : null;
+
+          return {
+            id: backendService.id,
+            name: backendService.name,
+            status: newStatus,
+            metric: primaryMetric,
+            value: primaryValue,
+            history: newHistory,
+            alert_id: alertId,
+            backendData: backendService,
+            allMetrics: realMetrics,
+            instanceCount: backendService.instanceCount,
+            awaitingRemediation: backendService.awaitingRemediation
+          };
+        });
+
+        return {
+          ...prevData,
+          services: updatedServices
+        };
+      });
+    } catch (error) {
+      console.log('Backend polling failed:', error);
+    }
+  }, [backendAvailable, backendUrl, fetchServiceMetrics]);
+
   // Load initial data from backend
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
@@ -69,8 +183,8 @@ export const DashboardProvider = ({ children }) => {
         return;
       }
 
-      // Fetch services from backend
-      const response = await fetch(`${backendUrl}/api/services?_t=${Date.now()}`, {
+      // Get basic services list
+      const servicesResponse = await fetch(`${backendUrl}/api/services?_t=${Date.now()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -78,14 +192,25 @@ export const DashboardProvider = ({ children }) => {
         cache: 'no-cache'
       });
 
-      if (!response.ok) {
-        throw new Error(`Backend responded with status: ${response.status}`);
+      if (!servicesResponse.ok) {
+        throw new Error(`Backend responded with status: ${servicesResponse.status}`);
       }
 
-      const backendServices = await response.json();
-      
-      // Transform backend services to frontend format
-      const frontendServices = backendServices.map(backendService => {
+      const basicServices = await servicesResponse.json();
+
+      // Get detailed metrics for each service
+      const servicesWithDetails = await Promise.all(
+        basicServices.map(async (basicService) => {
+          const details = await fetchServiceMetrics(basicService.id);
+          return {
+            ...basicService,
+            metrics: details?.metrics || basicService.metrics
+          };
+        })
+      );
+
+      // Transform backend services to frontend format USING REAL METRICS
+      const frontendServices = servicesWithDetails.map(backendService => {
         const statusMap = {
           'healthy': 'HEALTHY',
           'warning': 'WARNING', 
@@ -96,47 +221,33 @@ export const DashboardProvider = ({ children }) => {
           ? 'REMEDIATING' 
           : statusMap[backendService.status] || 'HEALTHY';
 
-        // Create realistic base metrics based on status
-        let baseMetrics = {
-          CPU_Load: 50,
-          Memory_Use: 50,
-          Latency_ms: 100,
-          Error_Rate: 1,
-          Disk_IO_Wait: 5
+        // USE REAL BACKEND METRICS with ServiceCard-compatible property names
+        const realMetrics = {
+          cpu: backendService.metrics?.cpu || 0,
+          memory: backendService.metrics?.memory || 0,
+          latency: backendService.metrics?.latency || 0,
+          error_rate: backendService.metrics?.error_rate || 0,
+          disk_io_wait: backendService.metrics?.throughput ? 
+            Math.max(0, 100 - (backendService.metrics.throughput / 12)) : 0
         };
 
-        if (backendService.status === 'critical') {
-          baseMetrics = {
-            CPU_Load: 85 + Math.random() * 15,
-            Memory_Use: 80 + Math.random() * 15,
-            Latency_ms: 800 + Math.random() * 400,
-            Error_Rate: 15 + Math.random() * 10,
-            Disk_IO_Wait: 20 + Math.random() * 10
-          };
-        } else if (backendService.status === 'warning') {
-          baseMetrics = {
-            CPU_Load: 65 + Math.random() * 20,
-            Memory_Use: 70 + Math.random() * 15,
-            Latency_ms: 300 + Math.random() * 200,
-            Error_Rate: 5 + Math.random() * 5,
-            Disk_IO_Wait: 10 + Math.random() * 8
-          };
-        } else {
-          baseMetrics = {
-            CPU_Load: 20 + Math.random() * 40,
-            Memory_Use: 30 + Math.random() * 40,
-            Latency_ms: 50 + Math.random() * 150,
-            Error_Rate: 0.5 + Math.random() * 2,
-            Disk_IO_Wait: 2 + Math.random() * 8
-          };
-        }
+        // Map to frontend metric display names
+        const metricMap = {
+          cpu: 'CPU_Load',
+          memory: 'Memory_Use', 
+          latency: 'Latency_ms',
+          error_rate: 'Error_Rate',
+          disk_io_wait: 'Disk_IO_Wait'
+        };
 
         // Determine the most critical metric
-        const metricEntries = Object.entries(baseMetrics);
-        const [primaryMetric, primaryValue] = metricEntries.reduce((mostCritical, [metric, value]) => {
+        const metricEntries = Object.entries(realMetrics);
+        const [primaryMetricKey, primaryValue] = metricEntries.reduce((mostCritical, [metric, value]) => {
           if (!mostCritical) return [metric, value];
           return value > mostCritical[1] ? [metric, value] : mostCritical;
-        });
+        }, ['cpu', 0]);
+
+        const primaryMetric = metricMap[primaryMetricKey] || 'CPU_Load';
 
         const alertId = backendService.status === 'critical' 
           ? `ALERT-${backendService.id}` 
@@ -144,7 +255,7 @@ export const DashboardProvider = ({ children }) => {
           ? `WARN-${backendService.id}`
           : null;
 
-        // Create initial history
+        // Create initial history with REAL values
         const initialHistory = Array(MAX_HISTORY).fill(primaryValue);
 
         return {
@@ -156,7 +267,9 @@ export const DashboardProvider = ({ children }) => {
           history: initialHistory,
           alert_id: alertId,
           backendData: backendService,
-          allMetrics: baseMetrics
+          allMetrics: realMetrics,
+          instanceCount: backendService.instanceCount,
+          awaitingRemediation: backendService.awaitingRemediation
         };
       });
 
@@ -172,139 +285,7 @@ export const DashboardProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [checkBackendAvailability, setDashboardData, backendUrl]);
-
-  // Update ONLY the metric values without reloading everything
-  const updateMetricValues = useCallback(() => {
-    setDashboardData(prevData => {
-      if (!prevData || !prevData.services || prevData.services.length === 0) return prevData;
-
-      const updatedServices = prevData.services.map(service => {
-        // Create updated metrics with realistic fluctuations
-        const updatedAllMetrics = { ...service.allMetrics };
-        
-        // Update each metric with realistic fluctuations based on service status
-        const serviceStatus = service.backendData?.status || 'healthy';
-        
-        // CPU fluctuations
-        updatedAllMetrics.CPU_Load = getUpdatedMetricValue(
-          updatedAllMetrics.CPU_Load, 
-          'CPU_Load', 
-          serviceStatus
-        );
-        
-        // Memory fluctuations
-        updatedAllMetrics.Memory_Use = getUpdatedMetricValue(
-          updatedAllMetrics.Memory_Use,
-          'Memory_Use',
-          serviceStatus
-        );
-        
-        // Latency fluctuations
-        updatedAllMetrics.Latency_ms = getUpdatedMetricValue(
-          updatedAllMetrics.Latency_ms,
-          'Latency_ms',
-          serviceStatus
-        );
-        
-        // Error rate fluctuations
-        updatedAllMetrics.Error_Rate = getUpdatedMetricValue(
-          updatedAllMetrics.Error_Rate,
-          'Error_Rate',
-          serviceStatus
-        );
-
-        // Determine the new most critical metric
-        const metricEntries = Object.entries(updatedAllMetrics);
-        const [newPrimaryMetric, newPrimaryValue] = metricEntries.reduce((mostCritical, [metric, value]) => {
-          if (!mostCritical) return [metric, value];
-          return value > mostCritical[1] ? [metric, value] : mostCritical;
-        });
-
-        // Update history for the primary metric
-        const newHistory = [...service.history.slice(1), newPrimaryValue];
-
-        return {
-          ...service,
-          metric: newPrimaryMetric,
-          value: newPrimaryValue,
-          history: newHistory,
-          allMetrics: updatedAllMetrics
-        };
-      });
-
-      return {
-        ...prevData,
-        services: updatedServices
-      };
-    });
-  }, []);
-
-  // Helper function to update individual metric values
-  const getUpdatedMetricValue = (currentValue, metricType, serviceStatus) => {
-    let fluctuation = 0;
-    let newValue = currentValue || 50;
-
-    // Different fluctuation patterns based on metric type and service status
-    switch(metricType) {
-      case 'CPU_Load':
-        if (serviceStatus === 'critical') {
-          fluctuation = (Math.random() - 0.3) * 8; // Mostly increasing
-        } else if (serviceStatus === 'warning') {
-          fluctuation = (Math.random() - 0.4) * 6; // Slight upward bias
-        } else {
-          fluctuation = (Math.random() - 0.5) * 4; // Balanced
-        }
-        break;
-      
-      case 'Memory_Use':
-        if (serviceStatus === 'critical') {
-          fluctuation = (Math.random() - 0.2) * 6; // Mostly increasing
-        } else if (serviceStatus === 'warning') {
-          fluctuation = (Math.random() - 0.3) * 5; // Slight upward bias
-        } else {
-          fluctuation = (Math.random() - 0.5) * 3; // Balanced
-        }
-        break;
-      
-      case 'Latency_ms':
-        if (serviceStatus === 'critical') {
-          fluctuation = (Math.random() + 0.3) * 50; // Mostly increasing with spikes
-        } else if (serviceStatus === 'warning') {
-          fluctuation = (Math.random() - 0.1) * 30; // Slight upward bias
-        } else {
-          fluctuation = (Math.random() - 0.5) * 20; // Balanced
-        }
-        break;
-      
-      case 'Error_Rate':
-        if (serviceStatus === 'critical') {
-          fluctuation = (Math.random() + 0.4) * 3; // Mostly increasing
-        } else if (serviceStatus === 'warning') {
-          fluctuation = (Math.random() - 0.2) * 2; // Slight upward bias
-        } else {
-          fluctuation = (Math.random() - 0.6) * 1; // Mostly decreasing
-        }
-        break;
-      
-      default:
-        fluctuation = (Math.random() - 0.5) * 5;
-    }
-
-    newValue += fluctuation;
-
-    // Keep values in reasonable bounds
-    if (metricType === 'Latency_ms') {
-      newValue = Math.max(10, Math.min(2000, newValue));
-      return Math.round(newValue);
-    } else if (metricType === 'Error_Rate') {
-      newValue = Math.max(0.1, Math.min(25, newValue));
-    } else {
-      newValue = Math.max(1, Math.min(100, newValue));
-    }
-
-    return parseFloat(newValue.toFixed(1));
-  };
+  }, [checkBackendAvailability, setDashboardData, backendUrl, fetchServiceMetrics]);
 
   // Start remediation
   const startRemediation = useCallback(async (serviceId, currentService, isManual = false) => {
@@ -316,7 +297,7 @@ export const DashboardProvider = ({ children }) => {
     try {
       // Update UI immediately to remediating
       setDashboardData(prevData => {
-        if (!prevData) return null;
+        if (!prevData) return prevData;
 
         const updatedServices = prevData.services.map(service => 
           service.id === serviceId 
@@ -331,49 +312,9 @@ export const DashboardProvider = ({ children }) => {
         return { services: updatedServices, logs: updatedLogs };
       });
 
-      // After delay, set to healthy with improved metrics
+      // After delay, reload actual data from backend
       setTimeout(() => {
-        setDashboardData(prevData => {
-          if (!prevData) return null;
-
-          const healedServices = prevData.services.map(service => {
-            if (service.id === serviceId) {
-              // Set to healthy values
-              const healthyMetrics = {
-                CPU_Load: 25 + Math.random() * 15,
-                Memory_Use: 35 + Math.random() * 20,
-                Latency_ms: 50 + Math.random() * 50,
-                Error_Rate: 0.5 + Math.random() * 1,
-                Disk_IO_Wait: 3 + Math.random() * 4
-              };
-
-              // Determine new primary metric
-              const metricEntries = Object.entries(healthyMetrics);
-              const [primaryMetric, primaryValue] = metricEntries.reduce((mostCritical, [metric, value]) => {
-                if (!mostCritical) return [metric, value];
-                return value > mostCritical[1] ? [metric, value] : mostCritical;
-              });
-
-              const newHistory = Array(MAX_HISTORY).fill(primaryValue);
-
-              return {
-                ...service,
-                status: 'HEALTHY',
-                metric: primaryMetric,
-                value: primaryValue,
-                history: newHistory,
-                allMetrics: healthyMetrics,
-                alert_id: null
-              };
-            }
-            return service;
-          });
-
-          const successLog = createLog('AGENT_SUCCESS', currentService);
-          const updatedLogs = [successLog, ...prevData.logs].slice(0, MAX_LOGS);
-
-          return { services: healedServices, logs: updatedLogs };
-        });
+        loadDashboardData();
       }, 4000);
 
     } catch (error) {
@@ -381,7 +322,7 @@ export const DashboardProvider = ({ children }) => {
       
       // Revert status on error
       setDashboardData(prevData => {
-        if (!prevData) return null;
+        if (!prevData) return prevData;
         const revertedServices = prevData.services.map(service => 
           service.id === serviceId 
             ? { ...service, status: currentService.status }
@@ -390,18 +331,18 @@ export const DashboardProvider = ({ children }) => {
         return { ...prevData, services: revertedServices };
       });
     }
-  }, [backendAvailable]);
+  }, [backendAvailable, setDashboardData, loadDashboardData]);
 
   // Initial data load
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  // Set up interval for dynamic metric value updates (every 2 seconds)
+  // Set up interval for backend state polling (every 2 seconds)
   useEffect(() => {
-    const intervalId = setInterval(updateMetricValues, 2000);
+    const intervalId = setInterval(pollBackendState, 2000);
     return () => clearInterval(intervalId);
-  }, [updateMetricValues]);
+  }, [pollBackendState]);
 
   // Check backend availability periodically (every 30 seconds)
   useEffect(() => {
