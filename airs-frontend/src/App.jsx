@@ -10,13 +10,15 @@ import { Users, Settings } from 'lucide-react';
 import { THEME_STORAGE_KEY } from './utils/constants';
 import './App.css';
 
+// Main app content that uses the dashboard context
 const AppContent = () => {
   const [theme, setTheme] = useLocalStorage(THEME_STORAGE_KEY, 'dark');
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(() => window.innerWidth >= 1024);
   const [showSidebarMobile, setShowSidebarMobile] = useState(false);
   const [currentView, setCurrentView] = useState('Dashboard');
 
-  const { services, logs, startRemediation } = useDashboard();
+  // Get data from dashboard context
+  const { services, logs, startRemediation, isLoading, error, refreshData } = useDashboard();
 
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark');
@@ -25,7 +27,16 @@ const AppContent = () => {
   const renderView = () => {
     switch (currentView) {
       case 'Dashboard':
-        return <MainDashboardView services={services} logs={logs} startRemediation={startRemediation} />;
+        return (
+          <MainDashboardView 
+            services={services}
+            logs={logs}
+            startRemediation={startRemediation}
+            isLoading={isLoading}
+            error={error}
+            refreshData={refreshData}
+          />
+        );
       case 'Services':
         return <ServiceCatalogView services={services} />;
       case 'Team':
@@ -33,7 +44,16 @@ const AppContent = () => {
       case 'Settings':
         return <PlaceholderView title="Agent Configuration" icon={Settings} />;
       default:
-        return <MainDashboardView services={services} logs={logs} startRemediation={startRemediation} />;
+        return (
+          <MainDashboardView 
+            services={services}
+            logs={logs}
+            startRemediation={startRemediation}
+            isLoading={isLoading}
+            error={error}
+            refreshData={refreshData}
+          />
+        );
     }
   };
 
@@ -81,6 +101,7 @@ const AppContent = () => {
   );
 };
 
+// Main App component that provides the dashboard context
 const App = () => {
   return (
     <DashboardProvider>
