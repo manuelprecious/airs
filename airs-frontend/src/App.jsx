@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { DashboardProvider, useDashboard } from './contexts/DashboardContext';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import Header from './components/layout/Header';
