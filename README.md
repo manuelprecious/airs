@@ -1,5 +1,63 @@
-http://localhost:5000/api
+# SRE AI Remediation System (AIRS) - Complete Documentation
 
+---
+
+## Table of Contents
+* [Overview](#overview)
+* [Architecture](#architecture)
+* [Backend API Documentation](#backend-api-documentation)
+* [Frontend Documentation](#frontend-documentation)
+* [AI Agent Integration](#ai-agent-integration)
+* [Setup & Installation](#setup--installation)
+* [Development Guide](#development-guide)
+* [Deployment](#deployment)
+* [Troubleshooting](#troubleshooting)
+
+---
+
+## Overview
+The **SRE AI Remediation System (AIRS)** is a full-stack monitoring and automated remediation platform designed for microservices environments. It combines real-time service monitoring with AI-driven incident response and manual remediation capabilities.
+
+### Key Features
+*  **Real-time Service Monitoring:** Track CPU, memory, latency, error rates, and throughput
+*  **Automated Alerting:** Configurable thresholds with warning/critical states
+*  **AI Agent Ready:** Built-in integration points for AI-driven remediation
+*  **Manual Remediation:** One-click service recovery actions
+*  **Live Dashboards:** Real-time metrics visualization with historical trends
+*  **Audit Logging:** Complete incident and remediation tracking
+*  **Responsive UI:** Dark/light themes with mobile support
+
+---
+
+## Architecture
+### System Components
+```text
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Frontend      │    │    Backend       │    │   AI Agent      │
+│   (React)       │◄──►│   (Node.js)      │◄──►│   (External)    │
+│                 │    │                  │    │                 │
+│ - Dashboard     │    │ - API Routes     │    │ - Analysis      │
+│ - Service Cards │    │ - Service Models │    │ - Decision      │
+│ - Metrics       │    │ - Metrics Engine │    │ - Remediation   │
+│ - Logs          │    │ - Remediation    │    │   Triggers      │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                     ┌───────────┴───────────┐
+                     │      Data Flow        │
+                     │                       │
+                     │ - REST API Calls      │
+                     │ - WebSocket Events    │
+                     │ - Metric Updates      │
+                     └───────────────────────┘
+```
+
+### Backend API Documentation
+`Base URL`
+```bash
+curl http://localhost:5000/api
+```
 
 ### Health Check
 `GET /health`
