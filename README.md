@@ -3,12 +3,12 @@ http://localhost:5000/api
 
 ### Health Check
 `GET /health`
-
-bash
+```bash
 curl http://localhost:5000/api/health
+```
 
 **Response:**
-json
+```json
 {
   "status": "degraded",
   "timestamp": "2025-10-15T18:23:24.379Z",
@@ -26,14 +26,14 @@ json
     * *Response:* Complete service object with metrics, logs, and state
 * `POST /services/:id/simulate-load`: Triggers artificial load on a service to test failure scenarios
     **Body:**
-    json
+    ```json
     {
       "intensity": "low|medium|high|extreme"
     }
     
 * `POST /services/:id/remediate`: Initiates remediation action on a critical service
     **Body:**
-    json
+    ```json
     {
       "action": "restart_service|scale_instances|scale_memory|clear_cache|kill_connections",
       "reason": "Description of why remediation is needed"
@@ -41,7 +41,7 @@ json
     
 
 ### Service Object Structure
-javascript
+```javascript
 {
   "id": "S1",
   "name": "Payment Gateway",
@@ -63,7 +63,7 @@ javascript
 
 ### Configuration Constants
 **Thresholds** (`config/constants.js`):
-javascript
+```javascript
 const THRESHOLDS = {
   cpu: { warn: 70, crit: 85 },
   memory: { warn: 75, crit: 90 },
@@ -72,7 +72,7 @@ const THRESHOLDS = {
 };
 
 **Remediation Actions:**
-javascript
+```javascript
 const REMEDIATION_CONFIG = {
   restart_service: { time: 4000, successProbability: 0.9 },
   scale_instances: { time: 6000, successProbability: 0.8 },
@@ -86,7 +86,7 @@ const REMEDIATION_CONFIG = {
 
 ## Frontend Documentation
 ### Component Architecture
-text
+```text
 App.jsx
 ├── DashboardContext.jsx (State Management)
 ├── Header.jsx
@@ -109,7 +109,7 @@ The application uses a combination of:
 * **Local Storage** for persistence
 * **Custom Hooks** for backend communication
 
-javascript
+```javascript
 // Using the dashboard context
 const { 
   services,           // Array of service objects
@@ -125,7 +125,7 @@ const {
 ### Styling System
 The UI uses CSS custom properties for theming:
 
-css
+```css
 /* Dark Mode (Default) */
 .dark-mode {
   --bg-dark: #0f172a;
@@ -154,7 +154,7 @@ The system is designed for seamless AI agent integration with the following capa
 Provides AI-ready analysis of service logs and metrics
 
 **Response:**
-json
+```json
 {
   "recent_errors": ["CPU utilization exceeding thresholds", "..."],
   "patterns": ["high_cpu_usage", "memory_leak"],
@@ -165,7 +165,7 @@ json
 
 
 ### 2. AI Decision Framework
-javascript
+```javascript
 // Example AI agent decision logic
 class AIRSAgent {
   async analyzeAndRemediate(serviceId) {
@@ -202,7 +202,7 @@ class AIRSAgent {
 
 ### 3. Integration Points
 **Real-time Monitoring:**
-javascript
+```javascript
 // Poll for critical services and auto-remediate
 setInterval(async () => {
   const services = await fetchServices();
@@ -214,7 +214,7 @@ setInterval(async () => {
 }, 10000); // Check every 10 seconds
 
 **Log Pattern Recognition:**
-javascript
+```javascript
 // Backend error pattern configuration
 const ERROR_PATTERNS = {
   high_cpu: [
@@ -232,7 +232,7 @@ const ERROR_PATTERNS = {
 
 
 ### 4. AI Agent API Client
-javascript
+```javascript
 // Complete AI agent implementation example
 class AIRSAgentClient {
   constructor(backendUrl = 'http://localhost:5000') {
@@ -332,42 +332,42 @@ setInterval(() => aiAgent.monitorAndRemediate(), 15000); // Run every 15 seconds
 
 ### Backend Setup
 Navigate to backend directory:
-bash
+```bash
 cd airs-backend
 
 Install dependencies:
-bash
+```bash
 npm install
 
 Start the backend server:
-bash
+```bash
 node server.js
 
 The backend will start on **http://localhost:5000**
 
 ### Frontend Setup
 Navigate to frontend directory:
-bash
+```bash
 cd airs-frontend
 
 Install dependencies:
-bash
+```bash
 npm install
 
 Start the development server:
-bash
+```bash
 npm run dev
 
 The frontend will start on **http://localhost:3000** (or similar)
 
 ### Environment Variables
 **Backend (`.env`):**
-env
+```env
 PORT=5000
 NODE_ENV=development
 
 **Frontend (`.env`):**
-env
+```env
 VITE_BACKEND_URL=http://localhost:5000
 
 
@@ -376,7 +376,7 @@ VITE_BACKEND_URL=http://localhost:5000
 ## Development Guide
 ### Adding New Services
 **Backend - Update Service Models:**
-javascript
+```javascript
 // In models/Service.js
 function initializeServices() {
   services = [
@@ -391,7 +391,7 @@ function initializeServices() {
 
 ### Adding New Metric Types
 **Backend - Update Constants:**
-javascript
+```javascript
 // In config/constants.js
 const THRESHOLDS = {
   // ... existing thresholds
@@ -399,7 +399,7 @@ const THRESHOLDS = {
 };
 
 **Frontend - Update Metric Processing:**
-javascript
+```javascript
 // In DashboardContext.jsx, update transformBackendMetrics
 const transformBackendMetrics = (backendMetrics) => {
   return {
@@ -411,7 +411,7 @@ const transformBackendMetrics = (backendMetrics) => {
 
 ### Customizing Remediation Actions
 **Add New Action to Backend:**
-javascript
+```javascript
 // In config/constants.js
 const REMEDIATION_CONFIG = {
   // ... existing actions
@@ -419,7 +419,7 @@ const REMEDIATION_CONFIG = {
 };
 
 **Update Remediation Service:**
-javascript
+```javascript
 // In services/remediationService.js, add action handler
 const actionMessages = {
   // ... existing messages
@@ -432,7 +432,7 @@ const actionMessages = {
 ## Deployment
 ### Docker Deployment
 **Backend Dockerfile:**
-dockerfile
+```dockerfile
 FROM node:16-alpine
 WORKDIR /app
 COPY package*.json ./
@@ -443,7 +443,7 @@ CMD ["node", "server.js"]
 
 
 **Frontend Dockerfile:**
-dockerfile
+```dockerfile
 FROM node:16-alpine as build
 WORKDIR /app
 COPY package*.json ./
@@ -458,7 +458,7 @@ EXPOSE 80
 
 
 **`docker-compose.yml`:**
-yaml
+```yaml
 version: '3.8'
 services:
   backend:
@@ -502,7 +502,7 @@ services:
 
 ### Debug Mode
 Enable debug logging by adding to backend:
-javascript
+```javascript
 // In server.js
 const DEBUG = process.env.DEBUG === 'true';
 
@@ -522,17 +522,17 @@ const DEBUG = process.env.DEBUG === 'true';
 ## API Testing Examples
 ### Using curl for Testing
 **Get Service Health:**
-bash
+```bash
 curl http://localhost:5000/api/health
 
 **Simulate Load:**
-bash
+```bash
 curl -X POST http://localhost:5000/api/services/S1/simulate-load \
   -H "Content-Type: application/json" \
   -d '{"intensity": "high"}'
 
 **Trigger Remediation:**
-bash
+```bash
 curl -X POST http://localhost:5000/api/services/S1/remediate \
   -H "Content-Type: application/json" \
   -d '{"action": "restart_service", "reason": "Testing API"}'
