@@ -17,7 +17,7 @@ curl http://localhost:5000/api/health
   "services_total": 6,
   "uptime": 780.7896482
 }
-
+```
 
 ### Service Management
 * `GET /services`: Returns overview of all services
@@ -30,7 +30,8 @@ curl http://localhost:5000/api/health
     {
       "intensity": "low|medium|high|extreme"
     }
-    
+    ```
+
 * `POST /services/:id/remediate`: Initiates remediation action on a critical service
     **Body:**
     ```json
@@ -38,6 +39,7 @@ curl http://localhost:5000/api/health
       "action": "restart_service|scale_instances|scale_memory|clear_cache|kill_connections",
       "reason": "Description of why remediation is needed"
     }
+    ```
     
 
 ### Service Object Structure
@@ -59,6 +61,7 @@ curl http://localhost:5000/api/health
   "instanceCount": 4,
   "lastIncident": null
 }
+```
 
 
 ### Configuration Constants
@@ -70,6 +73,7 @@ const THRESHOLDS = {
   latency: { warn: 300, crit: 500 },
   error_rate: { warn: 5, crit: 10 }
 };
+```
 
 **Remediation Actions:**
 ```javascript
@@ -80,7 +84,7 @@ const REMEDIATION_CONFIG = {
   clear_cache: { time: 3000, successProbability: 0.7 },
   kill_connections: { time: 3500, successProbability: 0.75 }
 };
-
+```
 
 ---
 
@@ -96,7 +100,7 @@ App.jsx
     ├── DoughnutChart.jsx (Health Overview)
     ├── LogItem.jsx (Audit Log Entries)
     └── Sparkline.jsx (Metric Trends)
-
+```
 
 ### Key Components
 * **DashboardContext.jsx**: Central state management for the entire application, handles backend communication and data synchronization, manages service states, metrics, and remediation actions, and implements 2-second polling for real-time updates.
@@ -120,7 +124,7 @@ const {
   refreshData,        // Manual refresh function
   backendAvailable    // Backend connectivity status
 } = useDashboard();
-
+```
 
 ### Styling System
 The UI uses CSS custom properties for theming:
@@ -141,7 +145,7 @@ The UI uses CSS custom properties for theming:
   --text-primary: #0f172a;
   /* ... other variables */
 }
-
+```
 
 ---
 
@@ -162,7 +166,7 @@ Provides AI-ready analysis of service logs and metrics
   "root_cause": "high_cpu_load",
   "analysis_timestamp": "2025-10-15T18:23:24.379Z"
 }
-
+```
 
 ### 2. AI Decision Framework
 ```javascript
@@ -179,8 +183,9 @@ class AIRSAgent {
     if (action) {
       await this.triggerRemediation(serviceId, action, analysis);
     }
-  }
-  
+  }  
+
+
   determineRemediationAction(analysis) {
     const strategy = {
       'high_cpu_usage': 'scale_instances',
@@ -198,6 +203,7 @@ class AIRSAgent {
     return 'restart_service'; // Default fallback
   }
 }
+```
 
 
 ### 3. Integration Points
@@ -212,6 +218,7 @@ setInterval(async () => {
     await aiAgent.analyzeAndRemediate(service.id);
   }
 }, 10000); // Check every 10 seconds
+```
 
 **Log Pattern Recognition:**
 ```javascript
@@ -229,6 +236,7 @@ const ERROR_PATTERNS = {
   ]
   // ... more patterns
 };
+```
 
 
 ### 4. AI Agent API Client
@@ -320,7 +328,7 @@ class AIRSAgentClient {
 // Usage example
 const aiAgent = new AIRSAgentClient();
 setInterval(() => aiAgent.monitorAndRemediate(), 15000); // Run every 15 seconds
-
+```
 
 ---
 
@@ -334,14 +342,17 @@ setInterval(() => aiAgent.monitorAndRemediate(), 15000); // Run every 15 seconds
 Navigate to backend directory:
 ```bash
 cd airs-backend
+```
 
 Install dependencies:
 ```bash
 npm install
+```
 
 Start the backend server:
 ```bash
 node server.js
+```
 
 The backend will start on **http://localhost:5000**
 
@@ -349,14 +360,17 @@ The backend will start on **http://localhost:5000**
 Navigate to frontend directory:
 ```bash
 cd airs-frontend
+```
 
 Install dependencies:
 ```bash
 npm install
+```
 
 Start the development server:
 ```bash
 npm run dev
+```
 
 The frontend will start on **http://localhost:3000** (or similar)
 
@@ -365,11 +379,12 @@ The frontend will start on **http://localhost:3000** (or similar)
 ```env
 PORT=5000
 NODE_ENV=development
+```
 
 **Frontend (`.env`):**
 ```env
 VITE_BACKEND_URL=http://localhost:5000
-
+```
 
 ---
 
@@ -386,6 +401,8 @@ function initializeServices() {
     new Service('S7', 'New Microservice', 'healthy'),
   ];
 }
+```
+
 
 **Frontend - Service will automatically appear** due to dynamic data loading.
 
@@ -397,6 +414,7 @@ const THRESHOLDS = {
   // ... existing thresholds
   network_throughput: { warn: 1000, crit: 2000 } // MB/s
 };
+```
 
 **Frontend - Update Metric Processing:**
 ```javascript
@@ -407,7 +425,7 @@ const transformBackendMetrics = (backendMetrics) => {
     Network_Throughput: backendMetrics.network_throughput || 0
   };
 };
-
+```
 
 ### Customizing Remediation Actions
 **Add New Action to Backend:**
@@ -417,6 +435,7 @@ const REMEDIATION_CONFIG = {
   // ... existing actions
   redeploy_service: { time: 8000, successProbability: 0.95 }
 };
+```
 
 **Update Remediation Service:**
 ```javascript
@@ -425,7 +444,7 @@ const actionMessages = {
   // ... existing messages
   redeploy_service: 'Redeploying service with latest version...'
 };
-
+```
 
 ---
 
@@ -440,7 +459,7 @@ RUN npm ci --only=production
 COPY . .
 EXPOSE 5000
 CMD ["node", "server.js"]
-
+```
 
 **Frontend Dockerfile:**
 ```dockerfile
@@ -455,7 +474,7 @@ FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 EXPOSE 80
-
+```
 
 **`docker-compose.yml`:**
 ```yaml
@@ -474,7 +493,7 @@ services:
       - "3000:80"
     depends_on:
       - backend
-
+```
 
 ### Production Considerations
 * **Database Persistence:** Replace in-memory storage with Redis/PostgreSQL
@@ -505,7 +524,7 @@ Enable debug logging by adding to backend:
 ```javascript
 // In server.js
 const DEBUG = process.env.DEBUG === 'true';
-
+```
 
 ### Performance Optimization
 **Backend:**
@@ -524,6 +543,7 @@ const DEBUG = process.env.DEBUG === 'true';
 **Get Service Health:**
 ```bash
 curl http://localhost:5000/api/health
+```
 
 **Simulate Load:**
 ```bash
@@ -531,11 +551,14 @@ curl -X POST http://localhost:5000/api/services/S1/simulate-load \
   -H "Content-Type: application/json" \
   -d '{"intensity": "high"}'
 
+```
+
 **Trigger Remediation:**
 ```bash
 curl -X POST http://localhost:5000/api/services/S1/remediate \
   -H "Content-Type: application/json" \
   -d '{"action": "restart_service", "reason": "Testing API"}'
+```
 
 
 ### Using JavaScript for Testing
@@ -619,7 +642,7 @@ class AIRSTestSuite {
 // Run tests
 const testSuite = new AIRSTestSuite();
 testSuite.runFullTest();
-
+```
 
 ---
 
