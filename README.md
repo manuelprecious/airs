@@ -539,7 +539,7 @@ curl -X POST http://localhost:5000/api/services/S1/remediate \
 
 
 ### Using JavaScript for Testing
-javascript
+```javascript
 // Complete test suite
 class AIRSTestSuite {
   constructor(baseUrl = 'http://localhost:5000/api') {
