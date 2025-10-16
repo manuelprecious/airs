@@ -344,12 +344,12 @@ class AIRSAgentClient {
       
       // Remediate each critical service
       for (const service of criticalServices) {
-        console.log(`🔄 AI Agent analyzing critical service: ${service.name}`);
+        console.log(`AI Agent analyzing critical service: ${service.name}`);
         
         const analysis = await this.getServiceAnalysis(service.id);
         const action = this.determineOptimalAction(analysis);
         
-        console.log(`🚀 AI Agent triggering ${action} for ${service.name}`);
+        console.log(`AI Agent triggering ${action} for ${service.name}`);
         await this.triggerRemediation(
           service.id, 
           action, 
@@ -629,7 +629,7 @@ class AIRSTestSuite {
   
   async runFullTest() {
     try {
-      console.log('🚀 Starting AIRS System Test...');
+      console.log('Starting AIRS System Test...');
       
       // Test 1: Health Check
       await this.testHealthEndpoint();
@@ -643,23 +643,23 @@ class AIRSTestSuite {
       // Test 4: Remediation
       await this.testRemediation(services[0].id);
       
-      console.log('✅ All tests completed successfully!');
+      console.log('All tests completed successfully!');
     } catch (error) {
-      console.error('❌ Test failed:', error.message);
+      console.error('Test failed:', error.message);
     }
   }
   
   async testHealthEndpoint() {
     const response = await fetch(`${this.baseUrl}/health`);
     const data = await response.json();
-    console.log('🏥 Health Check:', data.status);
+    console.log('Health Check:', data.status);
     return data;
   }
   
   async testServiceListing() {
     const response = await fetch(`${this.baseUrl}/services`);
     const services = await response.json();
-    console.log('📊 Services Found:', services.length);
+    console.log('Services Found:', services.length);
     return services;
   }
   
@@ -670,7 +670,7 @@ class AIRSTestSuite {
       body: JSON.stringify({ intensity: 'high' })
     });
     const result = await response.json();
-    console.log('⚡ Load Simulation:', result.message);
+    console.log('Load Simulation:', result.message);
     return result;
   }
   
