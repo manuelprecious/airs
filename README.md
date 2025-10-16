@@ -30,6 +30,34 @@ The **SRE AI Remediation System (AIRS)** is a full-stack monitoring and automate
 ---
 
 ## Architecture
+### System Components
+
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Frontend      │    │    Backend       │    │   AI Agent      │
+│   (React)       │◄──►│   (Node.js)      │◄──►│   (External)    │
+│                 │    │                  │    │                 │
+│ - Dashboard     │    │ - API Routes     │    │ - Analysis      │
+│ - Service Cards │    │ - Service Models │    │ - Decision      │
+│ - Metrics       │    │ - Metrics Engine │    │ - Remediation   │
+│ - Logs          │    │ - Remediation    │    │   Triggers      │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                     ┌───────────┴───────────┐
+                     │      Data Flow        │
+                     │                       │
+                     │ - REST API Calls      │
+                     │ - WebSocket Events    │
+                     │ - Metric Updates      │
+                     └───────────────────────┘
+
+
+## Backend API Documentation
+
+### Base URL
+
+http://localhost:5000/api
 
 
 ### Health Check
