@@ -3,11 +3,12 @@ http://localhost:5000/api
 
 ### Health Check
 `GET /health`
-```bash
+
+bash
 curl http://localhost:5000/api/health
 
 **Response:**
-```json
+json
 {
   "status": "degraded",
   "timestamp": "2025-10-15T18:23:24.379Z",
