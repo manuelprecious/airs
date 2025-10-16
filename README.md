@@ -1,62 +1,3 @@
-# SRE AI Remediation System (AIRS) - Complete Documentation
-
----
-
-## Table of Contents
-* [Overview](#overview)
-* [Architecture](#architecture)
-* [Backend API Documentation](#backend-api-documentation)
-* [Frontend Documentation](#frontend-documentation)
-* [AI Agent Integration](#ai-agent-integration)
-* [Setup & Installation](#setup--installation)
-* [Development Guide](#development-guide)
-* [Deployment](#deployment)
-* [Troubleshooting](#troubleshooting)
-
----
-
-## Overview
-The **SRE AI Remediation System (AIRS)** is a full-stack monitoring and automated remediation platform designed for microservices environments. It combines real-time service monitoring with AI-driven incident response and manual remediation capabilities.
-
-### Key Features
-*  **Real-time Service Monitoring:** Track CPU, memory, latency, error rates, and throughput
-*  **Automated Alerting:** Configurable thresholds with warning/critical states
-*  **AI Agent Ready:** Built-in integration points for AI-driven remediation
-*  **Manual Remediation:** One-click service recovery actions
-*  **Live Dashboards:** Real-time metrics visualization with historical trends
-*  **Audit Logging:** Complete incident and remediation tracking
-*  **Responsive UI:** Dark/light themes with mobile support
-
----
-
-## Architecture
-### System Components
-
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Frontend      │    │    Backend       │    │   AI Agent      │
-│   (React)       │◄──►│   (Node.js)      │◄──►│   (External)    │
-│                 │    │                  │    │                 │
-│ - Dashboard     │    │ - API Routes     │    │ - Analysis      │
-│ - Service Cards │    │ - Service Models │    │ - Decision      │
-│ - Metrics       │    │ - Metrics Engine │    │ - Remediation   │
-│ - Logs          │    │ - Remediation    │    │   Triggers      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                     ┌───────────┴───────────┐
-                     │      Data Flow        │
-                     │                       │
-                     │ - REST API Calls      │
-                     │ - WebSocket Events    │
-                     │ - Metric Updates      │
-                     └───────────────────────┘
-
-
-## Backend API Documentation
-
-### Base URL
-
 http://localhost:5000/api
 
 
@@ -336,12 +277,12 @@ class AIRSAgentClient {
       
       // Remediate each critical service
       for (const service of criticalServices) {
-        console.log(` AI Agent analyzing critical service: ${service.name}`);
+        console.log(`🔄 AI Agent analyzing critical service: ${service.name}`);
         
         const analysis = await this.getServiceAnalysis(service.id);
         const action = this.determineOptimalAction(analysis);
         
-        console.log(` AI Agent triggering ${action} for ${service.name}`);
+        console.log(`🚀 AI Agent triggering ${action} for ${service.name}`);
         await this.triggerRemediation(
           service.id, 
           action, 
@@ -606,7 +547,7 @@ class AIRSTestSuite {
   
   async runFullTest() {
     try {
-      console.log(' Starting AIRS System Test...');
+      console.log('🚀 Starting AIRS System Test...');
       
       // Test 1: Health Check
       await this.testHealthEndpoint();
@@ -620,23 +561,23 @@ class AIRSTestSuite {
       // Test 4: Remediation
       await this.testRemediation(services[0].id);
       
-      console.log('All tests completed successfully!');
+      console.log('✅ All tests completed successfully!');
     } catch (error) {
-      console.error(' Test failed:', error.message);
+      console.error('❌ Test failed:', error.message);
     }
   }
   
   async testHealthEndpoint() {
     const response = await fetch(`${this.baseUrl}/health`);
     const data = await response.json();
-    console.log('Health Check:', data.status);
+    console.log('🏥 Health Check:', data.status);
     return data;
   }
   
   async testServiceListing() {
     const response = await fetch(`${this.baseUrl}/services`);
     const services = await response.json();
-    console.log('Services Found:', services.length);
+    console.log('📊 Services Found:', services.length);
     return services;
   }
   
@@ -647,7 +588,7 @@ class AIRSTestSuite {
       body: JSON.stringify({ intensity: 'high' })
     });
     const result = await response.json();
-    console.log('Load Simulation:', result.message);
+    console.log('⚡ Load Simulation:', result.message);
     return result;
   }
   
