@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import { 
   Zap, Cpu, Server, Clock, AlertTriangle, HardHat, 
-  RefreshCw, CheckCircle, XCircle 
+  RefreshCw, CheckCircle, XCircle,
+  Calendar,
+  Server as ServerIcon
 } from 'lucide-react';
 import Sparkline from '../common/Sparkline';
 import { 
@@ -39,6 +41,38 @@ const ServiceCard = React.memo(({ service, startRemediation }) => {
       startRemediation(service.id, service, true);
     }
   };
+
+  // FIX: Show actual time instead of relative time
+  const formatLastIncident = useMemo(() => {
+    if (!backendData?.lastIncident) return null;
+    
+    try {
+      // Handle both object format (from remediation) and string format
+      const incidentDate = backendData.lastIncident.timestamp 
+        ? new Date(backendData.lastIncident.timestamp)
+        : new Date(backendData.lastIncident);
+      
+      if (isNaN(incidentDate.getTime())) {
+        return null; // Invalid date
+      }
+      
+      // Show actual date and time instead of relative time
+      const now = new Date();
+      const isToday = incidentDate.toDateString() === now.toDateString();
+      const isYesterday = new Date(now.setDate(now.getDate() - 1)).toDateString() === incidentDate.toDateString();
+      
+      if (isToday) {
+        return `Today at ${incidentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      } else if (isYesterday) {
+        return `Yesterday at ${incidentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      } else {
+        return incidentDate.toLocaleDateString() + ' ' + incidentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    } catch (error) {
+      console.warn('Error formatting last incident date:', error);
+      return null;
+    }
+  }, [backendData?.lastIncident]);
 
   // Get instance count from backend data
   const instanceCount = backendData?.instanceCount || 1;
@@ -83,10 +117,16 @@ const ServiceCard = React.memo(({ service, startRemediation }) => {
         <div className="flex-1 min-w-0">
           <h3 className="card-title truncate" title={name}>{name}</h3>
           {backendData && (
-            <div className="text-xs text-gray-500 mt-1">
-              Instances: {instanceCount}
-              {backendData.lastIncident && (
-                <span className="ml-2">• Last incident: {new Date(backendData.lastIncident).toLocaleDateString()}</span>
+            <div className="service-metadata">
+              <div className="metadata-item">
+                <ServerIcon size={10} className="metadata-icon" />
+                <span className="metadata-text">Instances: {instanceCount}</span>
+              </div>
+              {formatLastIncident && (
+                <div className="metadata-item">
+                  <Calendar size={10} className="metadata-icon" />
+                  <span className="metadata-text">Last incident: {formatLastIncident}</span>
+                </div>
               )}
             </div>
           )}

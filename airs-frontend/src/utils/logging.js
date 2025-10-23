@@ -6,19 +6,19 @@ export const createLog = (type, service) => {
 
   switch(type) {
     case 'AGENT_TRIGGERED':
-      message = `Incident Detected: ${service.name} entered CRITICAL state (${service.metric}: ${service.value}${METRIC_UNITS[service.metric]}). **AIRS Agent Triage Initiated.**`;
+      message = `🚨 Incident Detected: ${service.name} entered CRITICAL state (${service.metric}: ${service.value}${METRIC_UNITS[service.metric]}). **AIRS Agent Triage Initiated.**`;
       break;
     case 'AGENT_SUCCESS':
-      message = `Remediation Success: **AIRS Agent** validated ${service.name} health restored. Service stabilized.`;
+      message = `✅ Remediation Success: **AIRS Agent** validated ${service.name} health restored. Service stabilized.`;
       break;
     case 'MANUAL_OVERRIDE':
-      message = `Manual Intervention: User initiated **Remediation Tool** for ${service.name}. Agent bypassed.`;
+      message = `👤 Manual Intervention: User initiated **Remediation Tool** for ${service.name}. Agent bypassed.`;
       break;
     case 'WARNING':
-      message = `State Change: ${service.name} entered WARNING state (${service.metric}: ${service.value}${METRIC_UNITS[service.metric]}).`;
+      message = `⚠️ State Change: ${service.name} entered WARNING state (${service.metric}: ${service.value}${METRIC_UNITS[service.metric]}).`;
       break;
     default:
-      message = `System Update: ${service.name} health check completed.`;
+      message = `📊 System Update: ${service.name} health check completed.`;
       break;
   }
 

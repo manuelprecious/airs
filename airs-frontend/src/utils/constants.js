@@ -2,7 +2,7 @@ export const SIMULATION_INTERVAL_MS = 1500;
 export const REMEDIATION_DELAY_MS = 4000;
 export const MAX_HISTORY = 30;
 export const MAX_LOGS = 100;
-export const LOCAL_STORAGE_KEY = 'sre_dashboard_state_airs_v5';
+export const LOCAL_STORAGE_KEY = 'sre_dashboard_state_airs_v6';
 export const THEME_STORAGE_KEY = 'sre_dashboard_theme_v5';
 
 export const METRIC_UNITS = {
@@ -36,6 +36,9 @@ export const STATUS_COLORS = {
   'AGENT_SUCCESS': '#22c55e',
   'AGENT_TRIGGERED': '#ef4444',
   'MANUAL_OVERRIDE': '#a855f7',
+  'AI_ACTIVE': '#8b5cf6', // Purple for AI
+  'WATCHMAN_RUNNING': '#10b981', // Green for running
+  'WATCHMAN_STOPPED': '#ef4444', // Red for stopped
 };
 
 export const DEFAULT_SERVICES = [

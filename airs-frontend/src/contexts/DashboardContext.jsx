@@ -20,14 +20,18 @@ export const useDashboard = () => {
 };
 
 export const DashboardProvider = ({ children }) => {
+  // Remove logs from localStorage - only keep services for initial load
   const [dashboardData, setDashboardData] = useLocalStorage(LOCAL_STORAGE_KEY, {
     services: [],
-    logs: [],
+    // Remove logs from here - they should be real-time only
   });
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [backendAvailable, setBackendAvailable] = useState(false);
+  
+  // NEW: Real-time logs state (not persisted)
+  const [realtimeLogs, setRealtimeLogs] = useState([]);
 
   // Backend configuration
   const backendUrl =
@@ -76,6 +80,90 @@ export const DashboardProvider = ({ children }) => {
     },
     [backendUrl]
   );
+
+  // Helper function to safely parse lastIncident date
+  const parseLastIncident = (lastIncident) => {
+    if (!lastIncident) return null;
+    
+    try {
+      // Handle both object format (from remediation) and string format
+      const incidentDate = lastIncident.timestamp 
+        ? new Date(lastIncident.timestamp)
+        : new Date(lastIncident);
+      
+      if (!isNaN(incidentDate.getTime())) {
+        return incidentDate.toISOString();
+      }
+    } catch (error) {
+      console.warn('Error parsing last incident date:', error);
+    }
+    
+    return null;
+  };
+
+  // NEW: Fetch real-time logs from backend services
+  const fetchRealtimeLogs = useCallback(async () => {
+    if (!backendAvailable) return [];
+
+    try {
+      // Get all services to aggregate their logs
+      const servicesResponse = await fetch(`${backendUrl}/api/services?_t=${Date.now()}`);
+      if (!servicesResponse.ok) return [];
+      
+      const services = await servicesResponse.json();
+      
+      // Get detailed logs for each service
+      const servicesWithLogs = await Promise.all(
+        services.map(async (service) => {
+          try {
+            const details = await fetchServiceMetrics(service.id);
+            return {
+              ...service,
+              logs: details?.logs || []
+            };
+          } catch (error) {
+            return { ...service, logs: [] };
+          }
+        })
+      );
+
+      // Aggregate and transform all service logs
+      const allLogs = servicesWithLogs.flatMap(service => 
+        service.logs.map(log => ({
+          id: `${service.id}-${log.timestamp}-${log.trace_id}`,
+          timestamp: log.timestamp,
+          type: mapLogLevelToType(log.level),
+          serviceName: service.name,
+          message: log.message,
+          level: log.level,
+          trace_id: log.trace_id
+        }))
+      );
+
+      // Sort by timestamp (newest first) and limit
+      return allLogs
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, MAX_LOGS);
+
+    } catch (error) {
+      console.error('Failed to fetch real-time logs:', error);
+      return [];
+    }
+  }, [backendAvailable, backendUrl, fetchServiceMetrics]);
+
+  // Helper to map backend log levels to frontend log types
+  const mapLogLevelToType = (level) => {
+    switch (level?.toUpperCase()) {
+      case 'ERROR':
+        return 'AGENT_TRIGGERED';
+      case 'WARN':
+        return 'WARNING';
+      case 'INFO':
+        return 'AGENT_SUCCESS';
+      default:
+        return 'MANUAL_OVERRIDE';
+    }
+  };
 
   // Poll backend for real state and metric changes
   const pollBackendState = useCallback(async () => {
@@ -164,6 +252,9 @@ export const DashboardProvider = ({ children }) => {
               ? `WARN-${backendService.id}`
               : null;
 
+          // FIX: Properly handle lastIncident date
+          const formattedLastIncident = parseLastIncident(backendService.lastIncident);
+
           return {
             id: backendService.id,
             name: backendService.name,
@@ -172,7 +263,10 @@ export const DashboardProvider = ({ children }) => {
             value: primaryValue,
             history: newHistory,
             alert_id: alertId,
-            backendData: backendService,
+            backendData: {
+              ...backendService,
+              lastIncident: formattedLastIncident
+            },
             allMetrics: realMetrics,
             instanceCount: backendService.instanceCount,
             awaitingRemediation: backendService.awaitingRemediation,
@@ -184,10 +278,15 @@ export const DashboardProvider = ({ children }) => {
           services: updatedServices,
         };
       });
+
+      // NEW: Update real-time logs on each poll
+      const newLogs = await fetchRealtimeLogs();
+      setRealtimeLogs(newLogs);
+
     } catch (error) {
       console.log("Backend polling failed:", error);
     }
-  }, [backendAvailable, backendUrl, fetchServiceMetrics]);
+  }, [backendAvailable, backendUrl, fetchServiceMetrics, fetchRealtimeLogs]);
 
   // Load initial data from backend
   const loadDashboardData = useCallback(async () => {
@@ -201,8 +300,8 @@ export const DashboardProvider = ({ children }) => {
         );
         setDashboardData((prevData) => ({
           services: [],
-          logs: prevData?.logs || [],
         }));
+        setRealtimeLogs([]);
         return;
       }
 
@@ -291,6 +390,9 @@ export const DashboardProvider = ({ children }) => {
         // Create initial history with REAL values
         const initialHistory = Array(MAX_HISTORY).fill(primaryValue);
 
+        // FIX: Properly handle lastIncident date
+        const formattedLastIncident = parseLastIncident(backendService.lastIncident);
+
         return {
           id: backendService.id,
           name: backendService.name,
@@ -299,7 +401,10 @@ export const DashboardProvider = ({ children }) => {
           value: primaryValue,
           history: initialHistory,
           alert_id: alertId,
-          backendData: backendService,
+          backendData: {
+            ...backendService,
+            lastIncident: formattedLastIncident
+          },
           allMetrics: realMetrics,
           instanceCount: backendService.instanceCount,
           awaitingRemediation: backendService.awaitingRemediation,
@@ -308,13 +413,17 @@ export const DashboardProvider = ({ children }) => {
 
       setDashboardData((prevData) => ({
         services: frontendServices,
-        logs: prevData?.logs || [],
       }));
+
+      // NEW: Load initial real-time logs
+      const initialLogs = await fetchRealtimeLogs();
+      setRealtimeLogs(initialLogs);
 
       setError(null);
     } catch (error) {
       setError(error.message);
       setBackendAvailable(false);
+      setRealtimeLogs([]);
     } finally {
       setIsLoading(false);
     }
@@ -323,6 +432,7 @@ export const DashboardProvider = ({ children }) => {
     setDashboardData,
     backendUrl,
     fetchServiceMetrics,
+    fetchRealtimeLogs,
   ]);
 
   // Start remediation
@@ -369,15 +479,15 @@ export const DashboardProvider = ({ children }) => {
               : service
           );
 
-          const logType = isManual ? "MANUAL_OVERRIDE" : "AGENT_TRIGGERED";
-          const remediationLog = createLog(logType, currentService);
-          const updatedLogs = [remediationLog, ...prevData.logs].slice(
-            0,
-            MAX_LOGS
-          );
-
-          return { services: updatedServices, logs: updatedLogs };
+          return { services: updatedServices };
         });
+
+        // NEW: Add frontend log for the remediation action
+        const logType = isManual ? "MANUAL_OVERRIDE" : "AGENT_TRIGGERED";
+        const remediationLog = createLog(logType, currentService);
+        
+        setRealtimeLogs(prevLogs => [remediationLog, ...prevLogs].slice(0, MAX_LOGS));
+
       } catch (error) {
         setError(`Remediation failed: ${error.message}`);
 
@@ -415,7 +525,7 @@ export const DashboardProvider = ({ children }) => {
 
   const value = {
     services: dashboardData?.services || [],
-    logs: dashboardData?.logs || [],
+    logs: realtimeLogs, // NEW: Use real-time logs instead of localStorage
     startRemediation,
     isLoading,
     error,

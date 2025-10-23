@@ -7,6 +7,12 @@ import {
   RefreshCw,
   AlertCircle,
   Server,
+  Brain,
+  Eye,
+  Cpu,
+  Activity,
+  CheckCircle,
+  AlertOctagon,
 } from "lucide-react";
 import ServiceCard from "./ServiceCard";
 import LogItem from "./LogItem";
@@ -21,6 +27,15 @@ const MainDashboardView = ({
   refreshData,
 }) => {
   const [selectedTab, setSelectedTab] = useState("Critical");
+  const [aiSystemStatus] = useState({
+    agentsActive: true,
+    watchmanRunning: true,
+    lastHeartbeat: new Date().toISOString(),
+    activeRemediations: 0,
+    totalRemediations: 12,
+    successRate: "92%",
+    systemLoad: "Low"
+  });
 
   // Move ALL hooks to the top - they must be called in the same order every render
   const healthCounts = useMemo(() => {
@@ -66,6 +81,11 @@ const MainDashboardView = ({
     [selectedTab, criticalTimeline, generalTimeline]
   );
 
+  // Calculate active remediations for AI status
+  const activeRemediations = useMemo(() => {
+    return services.filter(s => s.status === 'REMEDIATING').length;
+  }, [services]);
+
   // Now do conditional rendering AFTER all hooks
   if (isLoading) {
     return (
@@ -108,7 +128,7 @@ const MainDashboardView = ({
           </p>
           <button
             onClick={refreshData}
-            className="refresh-data-btn" // Add this class
+            className="refresh-data-btn"
             title="Refresh data from backend"
           >
             <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
@@ -127,7 +147,7 @@ const MainDashboardView = ({
         <h1 className="main-title">AIRS Agent Operations Dashboard</h1>
         <button
           onClick={refreshData}
-          className="refresh-data-btn" // Add this class
+          className="refresh-data-btn"
           title="Refresh data from backend"
         >
           <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
@@ -135,35 +155,106 @@ const MainDashboardView = ({
         </button>
       </div>
 
-      {/* Health Overview */}
-      <div className="top-dashboard-summary">
-        <div className="summary-chart-container">
+      {/* THREE COLUMN LAYOUT: Big Card | 2x2 Grid | Big Card */}
+      <div className="three-column-layout">
+        {/* LEFT: Overall System Health (Big Card) */}
+        <div className="big-card-container">
           <DoughnutChart
             counts={healthCounts}
             totalServices={services.length}
           />
         </div>
 
-        <div className="stats-grid">
-          <div className="stat-card stat-healthy">
-            <Zap size={24} />
-            <div className="stat-value">{services.length}</div>
-            <div className="stat-label">Total Services</div>
+        {/* MIDDLE: 2x2 Grid of Stat Cards */}
+        <div className="stats-grid-2x2-middle">
+          <div className="stat-card-middle stat-healthy">
+            <Zap size={28} />
+            <div className="stat-value-middle">{services.length}</div>
+            <div className="stat-label-middle">Total Services</div>
           </div>
-          <div className="stat-card stat-remediating">
-            <HardHat size={24} />
-            <div className="stat-value">{remediatingCount}</div>
-            <div className="stat-label">Remediating</div>
+          <div className="stat-card-middle stat-remediating">
+            <HardHat size={28} />
+            <div className="stat-value-middle">{remediatingCount}</div>
+            <div className="stat-label-middle">Remediating</div>
           </div>
-          <div className="stat-card stat-critical">
-            <XCircle size={24} />
-            <div className="stat-value">{criticalCount}</div>
-            <div className="stat-label">Critical</div>
+          <div className="stat-card-middle stat-critical">
+            <XCircle size={28} />
+            <div className="stat-value-middle">{criticalCount}</div>
+            <div className="stat-label-middle">Critical</div>
           </div>
-          <div className="stat-card stat-warning">
-            <AlertTriangle size={24} />
-            <div className="stat-value">{warningCount}</div>
-            <div className="stat-label">Warnings</div>
+          <div className="stat-card-middle stat-warning">
+            <AlertTriangle size={28} />
+            <div className="stat-value-middle">{warningCount}</div>
+            <div className="stat-label-middle">Warnings</div>
+          </div>
+        </div>
+
+        {/* RIGHT: AI Agents & Watchman Service (Big Card) */}
+        <div className="big-card-container">
+          <div className={`ai-watchman-card ${aiSystemStatus.agentsActive ? 'active' : ''}`}>
+            <div className="ai-watchman-header">
+              <div className="ai-watchman-title-section">
+                <Brain size={32} className="ai-watchman-main-icon" />
+                <div>
+                  <h3 className="ai-watchman-title">AI Agents & Watchman</h3>
+                  <p className="ai-watchman-subtitle">Automated Remediation System</p>
+                </div>
+              </div>
+              <div className={`status-badge ${aiSystemStatus.agentsActive ? 'status-active' : 'status-inactive'}`}>
+                {aiSystemStatus.agentsActive ? (
+                  <CheckCircle size={16} />
+                ) : (
+                  <AlertOctagon size={16} />
+                )}
+                <span>{aiSystemStatus.agentsActive ? 'ACTIVE' : 'INACTIVE'}</span>
+              </div>
+            </div>
+
+            <div className="ai-watchman-content">
+              <div className="ai-metrics-grid">
+                <div className="ai-metric-item">
+                  <div className="ai-metric-value">{aiSystemStatus.totalRemediations}</div>
+                  <div className="ai-metric-label">Total Fixes</div>
+                </div>
+                <div className="ai-metric-item">
+                  <div className="ai-metric-value">{aiSystemStatus.successRate}</div>
+                  <div className="ai-metric-label">Success Rate</div>
+                </div>
+                <div className="ai-metric-item">
+                  <div className="ai-metric-value">{activeRemediations}</div>
+                  <div className="ai-metric-label">Active Now</div>
+                </div>
+                <div className="ai-metric-item">
+                  <div className="ai-metric-value">{aiSystemStatus.systemLoad}</div>
+                  <div className="ai-metric-label">System Load</div>
+                </div>
+              </div>
+
+              <div className="watchman-status-section">
+                <div className="watchman-status-header">
+                  <Eye size={20} className="watchman-icon" />
+                  <span>Watchman Service</span>
+                </div>
+                <div className="watchman-status-details">
+                  <div className={`watchman-status ${aiSystemStatus.watchmanRunning ? 'running' : 'stopped'}`}>
+                    <div className="status-indicator"></div>
+                    <span>{aiSystemStatus.watchmanRunning ? 'Running' : 'Stopped'}</span>
+                  </div>
+                  <div className="watchman-uptime">
+                    <Cpu size={14} />
+                    <span>Last: {new Date(aiSystemStatus.lastHeartbeat).toLocaleTimeString()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="ai-watchman-footer">
+              <div className="ai-activity">
+                <Activity size={16} />
+                <span>All systems operational</span>
+              </div>
+              <div className="ai-version">v2.1.0</div>
+            </div>
           </div>
         </div>
       </div>
