@@ -1,116 +1,232 @@
 const axios = require('axios');
+const { randomUUID } = require('crypto');
 const logger = require('../utils/logger');
 const { LANGFLOW_URL } = require('../config/constants');
-const TokenManager = require('./token_manager');
 
 class AutoRemediator {
   constructor(poller) {
     this.remediationHistory = new Map();
-    this.tokenManager = new TokenManager();
-    this.poller = poller; // Add poller for fallback remediation
+    this.poller = poller;
+    this.persistentCriticalServices = new Map(); // Track persistently critical services
     
     this.httpClient = axios.create({
-      timeout: 30000
+      timeout: 180000, // 3 minutes
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
     
-    logger.info('✅ AutoRemediator initialized with token management');
+    this.flowId = 'a9fa6d4b-4f83-41e5-8072-a35c313648da'; // New automated flow ID
+    
+    logger.info(`✅ AutoRemediator initialized - Will trigger automated Langflow flow: ${this.flowId}`);
   }
 
   async triggerRemediation(serviceId) {
     try {
-      logger.info(`🚨 Triggering AI remediation workflow for service: ${serviceId}`);
+      logger.info(`🚨 Triggering automated remediation for service: ${serviceId}`);
 
-      // Check if we already have an active remediation for this service
-      if (this.remediationHistory.has(serviceId)) {
-        const lastAttempt = this.remediationHistory.get(serviceId);
-        const timeSinceLastAttempt = Date.now() - lastAttempt.timestamp;
-
-        // Don't retry too frequently (wait at least 2 minutes)
-        if (timeSinceLastAttempt < 120000) {
-          logger.warn(`Skipping AI trigger for ${serviceId} - too soon after last attempt`);
-          return { success: false, reason: 'too_soon' };
-        }
+      // Check persistent tracking for this service
+      const now = Date.now();
+      if (!this.persistentCriticalServices.has(serviceId)) {
+        this.persistentCriticalServices.set(serviceId, {
+          firstDetected: now,
+          lastTriggered: 0,
+          triggerCount: 0,
+          lastStatus: 'critical'
+        });
       }
 
-      // Record this remediation attempt
-      this.remediationHistory.set(serviceId, {
-        timestamp: Date.now(),
-        attempts: (this.remediationHistory.get(serviceId)?.attempts || 0) + 1
-      });
+      const serviceTracker = this.persistentCriticalServices.get(serviceId);
+      const timeSinceLastTrigger = now - serviceTracker.lastTriggered;
 
-      // Trigger the Langflow AI workflow with token management
-      const result = await this.triggerLangflowWorkflow(serviceId);
+      // Progressive backoff: 5min, 15min, 30min, then hourly
+      const backoffSchedule = [300000, 900000, 1800000, 3600000]; // 5m, 15m, 30m, 1h
+      const currentBackoff = backoffSchedule[Math.min(serviceTracker.triggerCount, backoffSchedule.length - 1)];
 
-      logger.info(`✅ AI workflow triggered for ${serviceId}: ${result.message}`);
+      if (timeSinceLastTrigger < currentBackoff) {
+        const waitMinutes = Math.ceil((currentBackoff - timeSinceLastTrigger) / 60000);
+        logger.info(`⏳ Service ${serviceId} in backoff period, next trigger in ${waitMinutes} minutes`);
+        return { success: false, reason: 'backoff_period', wait_minutes: waitMinutes };
+      }
+
+      // Update tracker
+      serviceTracker.lastTriggered = now;
+      serviceTracker.triggerCount++;
+      serviceTracker.lastAttempt = now;
+
+      logger.info(`🔄 Attempt ${serviceTracker.triggerCount} for ${serviceId} (backoff: ${currentBackoff/60000}min)`);
+
+      // Get service context for Langflow
+      const serviceData = await this.poller.getServiceDetails(serviceId);
+      
+      // Update service status in tracker
+      serviceTracker.lastStatus = serviceData.status;
+
+      // Trigger Langflow automated flow
+      const result = await this.triggerLangflowFlow(serviceId, serviceData, serviceTracker.triggerCount);
+
+      if (result.success) {
+        logger.info(`✅ Automated remediation triggered for ${serviceId} (attempt ${serviceTracker.triggerCount})`);
+        
+        // If successful after multiple attempts, log recovery time
+        if (serviceTracker.triggerCount > 1) {
+          const recoveryTime = Math.round((now - serviceTracker.firstDetected) / 60000);
+          logger.info(`🎉 Service ${serviceId} recovered after ${recoveryTime} minutes and ${serviceTracker.triggerCount} attempts`);
+        }
+      } else {
+        logger.error(`❌ Failed to trigger remediation for ${serviceId} (attempt ${serviceTracker.triggerCount})`);
+      }
+
       return result;
 
     } catch (error) {
-      let errorMessage = 'Unknown error';
-
-      if (error.response) {
-        errorMessage = `Langflow error ${error.response.status}: ${error.response.data?.error || 'No error details'}`;
-      } else if (error.request) {
-        errorMessage = 'No response from Langflow';
-      } else {
-        errorMessage = error.message;
-      }
-
-      logger.error(`❌ AI workflow trigger failed for ${serviceId}: ${errorMessage}`);
-      return { success: false, error: errorMessage };
+      logger.error(`❌ Failed to trigger remediation for ${serviceId}: ${error.message}`);
+      return { success: false, error: error.message };
     }
   }
 
-  async triggerLangflowWorkflow(serviceId) {
+  async triggerLangflowFlow(serviceId, serviceData, attemptNumber) {
     try {
-      logger.info(`Calling Langflow API for service ${serviceId}...`);
-
-      // Estimate tokens for this request
-      const prompt = `Critical service: ${serviceId}`;
-      const estimatedTokens = this.tokenManager.estimateTokens(prompt);
+      const url = `${LANGFLOW_URL}/api/v1/run/${this.flowId}`;
       
-      // Check if we can make the request within limits
-      if (!this.tokenManager.canMakeRequest(estimatedTokens)) {
-        logger.warn(`🚫 Token/request limits reached, using fallback remediation for service ${serviceId}`);
-        return await this.tokenManager.fallbackBasicRemediation(serviceId, this.poller);
-      }
+      const criticalMetrics = this.getCriticalMetrics(serviceData.metrics);
+      const timeCritical = this.getTimeCritical(serviceId);
+      
+      const payload = {
+        output_type: "chat",
+        input_type: "chat",
+        input_value: this.buildRemediationMessage(serviceId, serviceData, attemptNumber, criticalMetrics, timeCritical),
+        session_id: randomUUID()
+      };
 
-      // Make the AI API call
-      const response = await this.httpClient.post(
-        `${LANGFLOW_URL}/api/trigger-remediation`,
-        {
-          service_id: serviceId,
-          trigger_source: 'watchman_auto',
-          timestamp: new Date().toISOString()
-        }
-      );
-
-      // Record successful token usage
-      this.tokenManager.recordRequest(estimatedTokens);
-
-      logger.info(`Langflow response: ${JSON.stringify(response.data)}`);
+      logger.info(`Calling automated Langflow API: ${url}`);
+      const response = await this.httpClient.post(url, payload, {
+        headers: {
+          'x-api-key': 'sk-uTXm3_qimgYgVQdhqhj8nYRH3fmHjROVck5CAJZ5UmU',
+          'Content-Type': 'application/json'
+        },
+        timeout: 180000
+      });
 
       return {
         success: true,
-        message: `AI remediation workflow started for ${serviceId}`,
-        workflow_id: response.data.workflow_id,
-        status: response.data.status,
-        tokens_used: estimatedTokens
+        message: `Automated remediation triggered for ${serviceId}`,
+        session_id: payload.session_id,
+        attempt: attemptNumber,
+        langflow_response: response.data
       };
 
     } catch (error) {
-      logger.error(`Langflow API call failed: ${error.message}`);
-      
+      logger.error(`Automated Langflow API call failed: ${error.message}`);
       if (error.response) {
         logger.error(`Langflow error details: ${JSON.stringify(error.response.data)}`);
-        
-        // If it's a 429 rate limit error, use fallback
-        if (error.response.status === 429) {
-          logger.warn(`🔄 Langflow rate limit hit, using fallback remediation for ${serviceId}`);
-          return await this.tokenManager.fallbackBasicRemediation(serviceId, this.poller);
+      }
+      throw error;
+    }
+  }
+
+  buildRemediationMessage(serviceId, serviceData, attemptNumber, criticalMetrics, timeCritical) {
+    return `🚨 CRITICAL SERVICE - AUTOMATED REMEDIATION WITH ESCALATION
+
+Service: ${serviceData.name} (${serviceId})
+Status: ${serviceData.status}
+Critical Metrics: ${criticalMetrics.join(', ')}
+Remediation Attempt: ${attemptNumber}
+Time Critical: ${timeCritical}
+
+Current State:
+- CPU: ${serviceData.metrics.cpu}%
+- Memory: ${serviceData.metrics.memory}%
+- Error Rate: ${serviceData.metrics.error_rate}%
+- Latency: ${serviceData.metrics.latency}ms
+
+Remediation Context:
+- Trigger: Watchman Persistent Monitoring
+- Human Approval: NOT REQUIRED (fully automated)
+- Intelligent Retry: ENABLED (attempt ${attemptNumber})
+- Gmail Escalation: ENABLED to riddicksmith37@gmail.com
+- Priority: HIGH - Service critical for ${timeCritical}
+
+INSTRUCTIONS FOR AUTOMATED REMEDIATION AGENT:
+1. Execute full diagnostic and remediation workflow automatically
+2. Use intelligent retry with different strategies if actions fail
+3. After 3 failures in this session, escalate via Gmail to riddicksmith37@gmail.com
+4. Include detailed failure analysis in escalation
+5. No human confirmation required for any actions
+
+Execute complete automated remediation with escalation.`;
+  }
+
+  getCriticalMetrics(metrics) {
+    const critical = [];
+    
+    if (metrics.cpu > 85) critical.push(`CPU: ${metrics.cpu}%`);
+    if (metrics.memory > 85) critical.push(`Memory: ${metrics.memory}%`);
+    if (metrics.error_rate > 10) critical.push(`Error Rate: ${metrics.error_rate}%`);
+    if (metrics.latency > 500) critical.push(`Latency: ${metrics.latency}ms`);
+    
+    return critical.length > 0 ? critical : ['General performance degradation'];
+  }
+
+  getTimeCritical(serviceId) {
+    if (!this.persistentCriticalServices.has(serviceId)) {
+      return 'just detected';
+    }
+    
+    const tracker = this.persistentCriticalServices.get(serviceId);
+    const minutesCritical = Math.round((Date.now() - tracker.firstDetected) / 60000);
+    
+    if (minutesCritical < 1) return 'less than 1 minute';
+    if (minutesCritical < 5) return `${minutesCritical} minutes`;
+    if (minutesCritical < 60) return `${minutesCritical} minutes`;
+    
+    const hours = Math.floor(minutesCritical / 60);
+    const remainingMinutes = minutesCritical % 60;
+    return `${hours}h ${remainingMinutes}m`;
+  }
+
+  // Check all critical services and trigger remediation if backoff period passed
+  async checkAndTriggerPersistentRemediation(services) {
+    const criticalServices = services.filter(s => 
+      s.status === 'critical' && s.awaitingRemediation
+    );
+
+    const results = [];
+    
+    for (const service of criticalServices) {
+      // Check if we're tracking this service
+      if (!this.persistentCriticalServices.has(service.id)) {
+        // New critical service - trigger immediately
+        logger.info(`🆕 New critical service detected: ${service.name} - triggering remediation`);
+        const result = await this.triggerRemediation(service.id);
+        results.push({ serviceId: service.id, serviceName: service.name, result });
+      } else {
+        // Existing critical service - check if we should retry
+        const result = await this.triggerRemediation(service.id);
+        if (result.success || result.reason !== 'backoff_period') {
+          results.push({ serviceId: service.id, serviceName: service.name, result });
         }
       }
-      
-      throw error;
+    }
+
+    // Clean up services that are no longer critical
+    this.cleanupRecoveredServices(services);
+
+    return results;
+  }
+
+  cleanupRecoveredServices(currentServices) {
+    const currentCriticalIds = new Set(
+      currentServices.filter(s => s.status === 'critical').map(s => s.id)
+    );
+
+    for (const [serviceId, tracker] of this.persistentCriticalServices.entries()) {
+      if (!currentCriticalIds.has(serviceId)) {
+        // Service is no longer critical - clean up
+        const criticalTime = Math.round((Date.now() - tracker.firstDetected) / 60000);
+        logger.info(`✅ Service ${serviceId} recovered after ${criticalTime} minutes, removing from persistent tracking`);
+        this.persistentCriticalServices.delete(serviceId);
+      }
     }
   }
 
@@ -118,70 +234,35 @@ class AutoRemediator {
     return Array.from(this.remediationHistory.entries()).map(([serviceId, data]) => ({
       serviceId,
       ...data,
-      lastAttempt: new Date(data.timestamp).toISOString()
+      lastTrigger: new Date(data.timestamp).toISOString()
     }));
   }
 
-  getTokenUsage() {
-    return this.tokenManager.getUsage();
+  getPersistentStatus() {
+    const persistent = Array.from(this.persistentCriticalServices.entries()).map(([serviceId, data]) => ({
+      serviceId,
+      ...data,
+      firstDetected: new Date(data.firstDetected).toISOString(),
+      lastTriggered: new Date(data.lastTriggered).toISOString(),
+      timeCritical: this.getTimeCritical(serviceId)
+    }));
+
+    return {
+      persistent_critical_services: persistent,
+      total_persistent: persistent.length,
+      flow_id: this.flowId
+    };
   }
 
-  // Single-shot remediation for critical services (1 LLM call instead of agent chain)
-  async singleShotRemediation(serviceId) {
-    try {
-      logger.info(`🚀 Starting single-shot remediation for service: ${serviceId}`);
-      
-      // Step 1: Pre-collect ALL data (no LLM calls)
-      const serviceData = await this.poller.getServiceDetails(serviceId);
-      const logAnalysis = await this.poller.getServiceLogAnalysis(serviceId);
-      const systemOverview = await this.poller.pollServices();
-      
-      // Step 2: Create compressed context
-      const compressedContext = {
-        health: `S${serviceId}:${serviceData.status}|C:${serviceData.metrics.cpu}|M:${serviceData.metrics.memory}|E:${serviceData.metrics.error_rate}`,
-        logs: `S${serviceId}:${logAnalysis.root_cause}|P:${logAnalysis.patterns.join(',')}|A:${logAnalysis.suggested_actions.join(',')}`,
-        system: `Total:${systemOverview.length}|H:${systemOverview.filter(s => s.status === 'healthy').length}|W:${systemOverview.filter(s => s.status === 'warning').length}|C:${systemOverview.filter(s => s.status === 'critical').length}`
-      };
-      
-      // Step 3: Estimate tokens for single LLM call
-      const prompt = JSON.stringify(compressedContext);
-      const estimatedTokens = this.tokenManager.estimateTokens(prompt);
-      
-      // Step 4: Check limits and proceed
-      if (!this.tokenManager.canMakeRequest(estimatedTokens)) {
-        logger.warn(`🚫 Token limits for single-shot, using fallback for ${serviceId}`);
-        return await this.tokenManager.fallbackBasicRemediation(serviceId, this.poller);
-      }
-
-      // Step 5: Single LLM call to unified agent
-      const response = await this.httpClient.post(
-        `${LANGFLOW_URL}/api/trigger-remediation`,
-        {
-          service_id: serviceId,
-          compressed_context: `${compressedContext.health} | ${compressedContext.logs} | ${compressedContext.system}`,
-          trigger_source: 'watchman_single_shot',
-          timestamp: new Date().toISOString()
-        }
-      );
-
-      // Step 6: Record token usage
-      this.tokenManager.recordRequest(estimatedTokens);
-
-      logger.info(`✅ Single-shot remediation triggered for ${serviceId}`);
-      return {
-        success: true,
-        message: `Single-shot remediation started for ${serviceId}`,
-        workflow_id: response.data.workflow_id,
-        status: response.data.status,
-        tokens_used: estimatedTokens,
-        method: 'single_shot'
-      };
-      
-    } catch (error) {
-      logger.error(`❌ Single-shot remediation failed for ${serviceId}: ${error.message}`);
-      // Fallback to original agent chain
-      return await this.triggerRemediation(serviceId);
-    }
+  getStatus() {
+    return {
+      active_triggers: this.remediationHistory.size,
+      persistent_critical: this.persistentCriticalServices.size,
+      flow_id: this.flowId,
+      last_trigger: this.remediationHistory.size > 0 ? 
+        new Date(Math.max(...Array.from(this.remediationHistory.values()).map(d => d.timestamp))).toISOString() : 
+        null
+    };
   }
 }
 
