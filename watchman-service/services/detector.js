@@ -59,6 +59,29 @@ class CriticalDetector {
     if (warningCount > 0) return POLLING_INTERVALS.DEGRADED;
     return POLLING_INTERVALS.NORMAL;
   }
+
+  // NEW: Calculate system load based on service health
+  getSystemLoad(services = []) {
+    if (!services || services.length === 0) return "Low";
+    
+    const criticalCount = services.filter(s => 
+      s.status === STATES.CRITICAL && s.awaitingRemediation
+    ).length;
+    
+    const warningCount = services.filter(s => s.status === STATES.WARNING).length;
+    const totalServices = services.length;
+    
+    if (totalServices === 0) return "Unknown";
+    
+    const criticalPercentage = (criticalCount / totalServices) * 100;
+    const warningPercentage = (warningCount / totalServices) * 100;
+    
+    if (criticalPercentage > 30) return "Critical";
+    if (criticalPercentage > 15 || warningPercentage > 40) return "High";
+    if (criticalPercentage > 5 || warningPercentage > 20) return "Medium";
+    
+    return "Low";
+  }
 }
 
 module.exports = CriticalDetector;

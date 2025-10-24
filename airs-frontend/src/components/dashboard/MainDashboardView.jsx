@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Zap,
   HardHat,
@@ -27,15 +27,53 @@ const MainDashboardView = ({
   refreshData,
 }) => {
   const [selectedTab, setSelectedTab] = useState("Critical");
-  const [aiSystemStatus] = useState({
-    agentsActive: true,
-    watchmanRunning: true,
-    lastHeartbeat: new Date().toISOString(),
+  
+  // NEW: Dynamic system status state
+  const [systemStatus, setSystemStatus] = useState({
+    agentsActive: false,
+    watchmanRunning: false,
+    lastHeartbeat: null,
     activeRemediations: 0,
-    totalRemediations: 12,
-    successRate: "92%",
-    systemLoad: "Low"
+    totalRemediations: 0,
+    successRate: "0%",
+    systemLoad: "Unknown",
+    overallStatus: "checking"
   });
+
+  // NEW: Fetch system status from backend
+  useEffect(() => {
+    const fetchSystemStatus = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/system-status');
+        if (response.ok) {
+          const data = await response.json();
+          
+          setSystemStatus({
+            agentsActive: data.langflow.connected,
+            watchmanRunning: data.watchman.running,
+            lastHeartbeat: data.watchman.lastHeartbeat,
+            activeRemediations: data.remediation.active_remediations,
+            totalRemediations: data.remediation.total_fixes,
+            successRate: data.remediation.success_rate,
+            systemLoad: data.remediation.system_load,
+            overallStatus: data.overall_status
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch system status:', error);
+        setSystemStatus(prev => ({
+          ...prev,
+          overallStatus: 'error'
+        }));
+      }
+    };
+
+    // Fetch immediately and then every 10 seconds
+    fetchSystemStatus();
+    const interval = setInterval(fetchSystemStatus, 10000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Move ALL hooks to the top - they must be called in the same order every render
   const healthCounts = useMemo(() => {
@@ -189,9 +227,9 @@ const MainDashboardView = ({
           </div>
         </div>
 
-        {/* RIGHT: AI Agents & Watchman Service (Big Card) */}
+        {/* RIGHT: AI Agents & Watchman Service (Big Card) - UPDATED */}
         <div className="big-card-container">
-          <div className={`ai-watchman-card ${aiSystemStatus.agentsActive ? 'active' : ''}`}>
+          <div className={`ai-watchman-card ${systemStatus.overallStatus === 'operational' ? 'active' : 'degraded'}`}>
             <div className="ai-watchman-header">
               <div className="ai-watchman-title-section">
                 <Brain size={32} className="ai-watchman-main-icon" />
@@ -200,32 +238,32 @@ const MainDashboardView = ({
                   <p className="ai-watchman-subtitle">Automated Remediation System</p>
                 </div>
               </div>
-              <div className={`status-badge ${aiSystemStatus.agentsActive ? 'status-active' : 'status-inactive'}`}>
-                {aiSystemStatus.agentsActive ? (
+              <div className={`status-badge ${systemStatus.overallStatus === 'operational' ? 'status-active' : 'status-inactive'}`}>
+                {systemStatus.overallStatus === 'operational' ? (
                   <CheckCircle size={16} />
                 ) : (
                   <AlertOctagon size={16} />
                 )}
-                <span>{aiSystemStatus.agentsActive ? 'ACTIVE' : 'INACTIVE'}</span>
+                <span>{systemStatus.overallStatus === 'operational' ? 'ACTIVE' : 'DEGRADED'}</span>
               </div>
             </div>
 
             <div className="ai-watchman-content">
               <div className="ai-metrics-grid">
                 <div className="ai-metric-item">
-                  <div className="ai-metric-value">{aiSystemStatus.totalRemediations}</div>
+                  <div className="ai-metric-value">{systemStatus.totalRemediations}</div>
                   <div className="ai-metric-label">Total Fixes</div>
                 </div>
                 <div className="ai-metric-item">
-                  <div className="ai-metric-value">{aiSystemStatus.successRate}</div>
+                  <div className="ai-metric-value">{systemStatus.successRate}</div>
                   <div className="ai-metric-label">Success Rate</div>
                 </div>
                 <div className="ai-metric-item">
-                  <div className="ai-metric-value">{activeRemediations}</div>
+                  <div className="ai-metric-value">{systemStatus.activeRemediations}</div>
                   <div className="ai-metric-label">Active Now</div>
                 </div>
                 <div className="ai-metric-item">
-                  <div className="ai-metric-value">{aiSystemStatus.systemLoad}</div>
+                  <div className="ai-metric-value">{systemStatus.systemLoad}</div>
                   <div className="ai-metric-label">System Load</div>
                 </div>
               </div>
@@ -236,13 +274,13 @@ const MainDashboardView = ({
                   <span>Watchman Service</span>
                 </div>
                 <div className="watchman-status-details">
-                  <div className={`watchman-status ${aiSystemStatus.watchmanRunning ? 'running' : 'stopped'}`}>
+                  <div className={`watchman-status ${systemStatus.watchmanRunning ? 'running' : 'stopped'}`}>
                     <div className="status-indicator"></div>
-                    <span>{aiSystemStatus.watchmanRunning ? 'Running' : 'Stopped'}</span>
+                    <span>{systemStatus.watchmanRunning ? 'Running' : 'Stopped'}</span>
                   </div>
                   <div className="watchman-uptime">
                     <Cpu size={14} />
-                    <span>Last: {new Date(aiSystemStatus.lastHeartbeat).toLocaleTimeString()}</span>
+                    <span>Last: {systemStatus.lastHeartbeat ? new Date(systemStatus.lastHeartbeat).toLocaleTimeString() : 'Never'}</span>
                   </div>
                 </div>
               </div>
@@ -251,7 +289,16 @@ const MainDashboardView = ({
             <div className="ai-watchman-footer">
               <div className="ai-activity">
                 <Activity size={16} />
-                <span>All systems operational</span>
+                <span>
+                  {systemStatus.overallStatus === 'operational' 
+                    ? 'All systems operational' 
+                    : !systemStatus.agentsActive && !systemStatus.watchmanRunning
+                    ? 'Both AI Agent and Watchman are inactive'
+                    : !systemStatus.agentsActive
+                    ? 'AI Agent is inactive - check Langflow'
+                    : 'Watchman service is inactive'
+                  }
+                </span>
               </div>
               <div className="ai-version">v2.1.0</div>
             </div>

@@ -4941,3 +4941,34 @@ body, html, #root {
   transition: all 0.2s ease;
   white-space: nowrap;
 }
+
+/* Fix vertical spacing in doughnut chart center */
+.doughnut-svg-improved g:last-child text {
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.doughnut-svg-improved g:last-child text.chart-center-total-improved {
+  font-size: 2rem;
+  font-weight: 800;
+  y: 40% !important; /* Move the number up */
+}
+
+.doughnut-svg-improved g:last-child text.chart-center-label-improved {
+  font-size: 0.85rem;
+  font-weight: 600;
+  y: 55% !important; /* Keep "Services" in middle */
+}
+
+.doughnut-svg-improved g:last-child text.chart-center-healthy-improved {
+  font-size: 0.7rem;
+  font-weight: 500;
+  y: 68% !important; /* Move "Healthy" down */
+}
+
+/* Ensure the white background circle stays centered */
+.doughnut-svg-improved circle[fill="var(--bg-medium)"] {
+  cx: 90;
+  cy: 90;
+  r: 55;
+}

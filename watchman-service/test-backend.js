@@ -1,34 +1,44 @@
-const axios = require('axios');
+const http = require('http');
 
-async function testBackend() {
-  try {
-    console.log('🧪 Testing backend connection...');
-    
-    const response = await axios.get('http://localhost:5000/api/services', {
-      timeout: 5000
+function testEndpoint(url, callback) {
+  http.get(url, (res) => {
+    let data = '';
+    res.on('data', (chunk) => data += chunk);
+    res.on('end', () => {
+      try {
+        const jsonData = JSON.parse(data);
+        callback(null, jsonData);
+      } catch (e) {
+        callback(e, null);
+      }
     });
-    
-    console.log('✅ Backend is running!');
-    console.log(`📊 Found ${response.data.length} services:`);
-    
-    response.data.forEach(service => {
-      console.log(`   - ${service.name} (${service.id}): ${service.status}`);
-    });
-    
-  } catch (error) {
-    console.log('❌ Backend connection failed:');
-    
-    if (error.code === 'ECONNREFUSED') {
-      console.log('   Cannot connect to localhost:5000');
-      console.log('   Make sure your AIRS backend is running:');
-      console.log('   cd path/to/your/backend');
-      console.log('   npm start');
-    } else if (error.code === 'ENOTFOUND') {
-      console.log('   Host not found');
-    } else {
-      console.log('   Error:', error.message);
-    }
-  }
+  }).on('error', (err) => {
+    callback(err, null);
+  });
 }
 
-testBackend();
+console.log('🧪 Simple Backend Test...\n');
+
+// Test backend health
+testEndpoint('http://localhost:5000/api/health', (err, data) => {
+  if (err) {
+    console.log('❌ Backend health failed:', err.message);
+  } else {
+    console.log('✅ Backend health:', data.status);
+  }
+});
+
+// Test system-status
+setTimeout(() => {
+  testEndpoint('http://localhost:5000/api/system-status', (err, data) => {
+    if (err) {
+      console.log('❌ System status failed:', err.message);
+    } else {
+      console.log('✅ System status:', {
+        overall: data.overall_status,
+        watchman: data.watchman.running,
+        langflow: data.langflow.connected
+      });
+    }
+  });
+}, 2000);
