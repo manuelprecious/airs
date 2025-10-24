@@ -6,6 +6,7 @@ import Sidebar from './components/layout/Sidebar';
 import MainDashboardView from './components/dashboard/MainDashboardView';
 import ServiceCatalogView from './components/services/ServiceCatalogView';
 import PlaceholderView from './components/common/PlaceholderView';
+import ChatInterface from './components/chat/ChatInterface';
 import { Users, Settings } from 'lucide-react';
 import { THEME_STORAGE_KEY } from './utils/constants';
 import './App.css';
@@ -96,6 +97,9 @@ const AppContent = () => {
             {renderView()}
           </main>
         </div>
+
+        {/* Add Chat Interface */}
+        <ChatInterface />
       </div>
     </div>
   );
