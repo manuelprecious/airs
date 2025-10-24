@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+require('dotenv').config();
 
 const serviceRoutes = require('./routes/services');
 const healthRoutes = require('./routes/health');
@@ -12,10 +13,14 @@ const { startMetricsSimulation } = require('./services/metricsService');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const CORS_ORIGINS = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : ['http://localhost:5173', 'http://localhost:3000'];
+const SERVER_BASE_URL = process.env.SERVER_BASE_URL || `http://localhost:${PORT}`;
+
+
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'], // Allow frontend origins
+  origin: CORS_ORIGINS,
   credentials: true
 }));
 app.use(morgan('combined'));
@@ -56,9 +61,9 @@ app.use((err, req, res, next) => {
 // Start the server
 app.listen(PORT, () => {
   console.log(`🚀 SRE Monitoring Backend running on port ${PORT}`);
-  console.log(`📊 Health check available at http://localhost:${PORT}/api/health`);
-  console.log(`🤖 System status available at http://localhost:${PORT}/api/system-status`);
-  
+  console.log(`📊 Health check available at ${SERVER_BASE_URL}/api/health`);
+  console.log(`🤖 System status available at ${SERVER_BASE_URL}/api/system-status`);
+
   // Start metrics simulation
   startMetricsSimulation();
 });
