@@ -5,7 +5,7 @@
 ## Table of Contents
 * [Overview](#overview)
 * [Project Structure](#project-structure)
-* [API Documentation](#api-documentation) 
+* [API Documentation](#api-documentation)
 * [Core Services](#core-services)
 * [Setup & Installation](#setup--installation)
 * [Docker Deployment](#docker-deployment)
@@ -50,22 +50,17 @@ airs-backend/
 ├── Dockerfile               # Container configuration
 ├── .env.example             # Environment template
 └── .gitignore               # Git ignore rules
-```
-
-markdown
-### API Documentation
-```bash
-Base URL: http://localhost:5000/api
-```
-## Health & Status Endpoints
-
-### GET /health
+API Documentation
+Base URL
+bash
+http://localhost:5000/api
+Health & Status Endpoints
+GET /health
 Returns overall system health status
 
-```bash
+bash
 curl http://localhost:5000/api/health
-```
-``` json
+json
 {
   "status": "healthy",
   "timestamp": "2024-01-15T10:30:00.000Z",
@@ -74,16 +69,12 @@ curl http://localhost:5000/api/health
   "services_total": 6,
   "uptime": 3600.45
 }
-```
-
-### GET /system-status
+GET /system-status
 Returns comprehensive system status including external service connectivity
 
-```bash
+bash
 curl http://localhost:5000/api/system-status
-```
-
-``` json
+json
 {
   "watchman": {
     "running": true,
@@ -97,18 +88,24 @@ curl http://localhost:5000/api/system-status
   "overall_status": "operational",
   "timestamp": "2024-01-15T10:30:00.000Z"
 }
-```
+GET /status-health
+Returns health status of the status service itself
 
-## Service Management Endpoints
-### GET /services
-
+bash
+curl http://localhost:5000/api/status-health
+json
+{
+  "status": "healthy",
+  "service": "system-status",
+  "timestamp": "2024-01-15T10:30:00.000Z"
+}
+Service Management Endpoints
+GET /services
 Returns overview of all monitored services
 
-```bash
+bash
 curl http://localhost:5000/api/services
-```
-
-```json
+json
 [
   {
     "id": "S1",
@@ -124,16 +121,12 @@ curl http://localhost:5000/api/services
     }
   }
 ]
-```
-
-### GET /services/:id/metrics
+GET /services/:id/metrics
 Returns detailed metrics and logs for a specific service
 
-```bash
+bash
 curl http://localhost:5000/api/services/S1/metrics
-```
-
-```json
+json
 {
   "id": "S1",
   "name": "Payment Gateway",
@@ -158,15 +151,12 @@ curl http://localhost:5000/api/services/S1/metrics
   "instanceCount": 2,
   "lastIncident": null
 }
-```
-
-### GET /services/:id/logs/analysis
+GET /services/:id/logs/analysis
 Returns AI-ready analysis of service logs and metrics
 
-```bash
+bash
 curl http://localhost:5000/api/services/S1/logs/analysis
-```
-```json
+json
 {
   "recent_errors": ["CPU utilization exceeding thresholds"],
   "patterns": ["high_cpu_usage"],
@@ -174,18 +164,14 @@ curl http://localhost:5000/api/services/S1/logs/analysis
   "root_cause": "high_cpu_load",
   "analysis_timestamp": "2024-01-15T10:30:00.000Z"
 }
-```
-
-### POST /services/:id/simulate-load
+POST /services/:id/simulate-load
 Triggers artificial load on a service to test failure scenarios
 
-```bash
+bash
 curl -X POST http://localhost:5000/api/services/S1/simulate-load \
   -H "Content-Type: application/json" \
   -d '{"intensity": "high"}'
-```
-
-```json
+json
 {
   "message": "Applied high load to Payment Gateway",
   "current_metrics": {
@@ -198,17 +184,14 @@ curl -X POST http://localhost:5000/api/services/S1/simulate-load \
   "status": "critical",
   "awaiting_remediation": true
 }
-```
-
-### POST /services/:id/remediate
+POST /services/:id/remediate
 Initiates remediation action on a critical service
 
-``` bash
+bash
 curl -X POST http://localhost:5000/api/services/S1/remediate \
   -H "Content-Type: application/json" \
   -d '{"action": "restart_service", "reason": "High CPU usage detected"}'
-```
-```json
+json
 {
   "message": "Remediation action 'restart_service' initiated",
   "estimated_completion": 4000,
@@ -216,54 +199,51 @@ curl -X POST http://localhost:5000/api/services/S1/remediate \
   "action_reason": "High CPU usage detected",
   "success_probability": 0.9
 }
-```
-
-### POST /services/reset
+POST /services/reset
 Resets all services to healthy state
 
-```bash
+bash
 curl -X POST http://localhost:5000/api/services/reset
-```
-
-```json
+json
 {
   "message": "All services reset to healthy state"
 }
-```
+Core Services
+Metrics Service
+Automatic Updates: Metrics update every 5 seconds with realistic fluctuations
 
+Status Transitions: Automatic health state changes based on configurable thresholds
 
-## Core Services
-### Metrics Service
+Natural Behavior: Simulates real-world service behavior patterns
 
-* Automatic Updates: Metrics update every 5 seconds with realistic fluctuations
+Load Intensities: Configurable load simulation levels (low, medium, high, extreme)
 
-* Status Transitions: Automatic health state changes based on configurable thresholds
+Remediation Service
+Multiple Actions: restart_service, scale_instances, scale_memory, clear_cache, kill_connections
 
-* Natural Behavior: Simulates real-world service behavior patterns
+Configurable Success: Each action has configurable success probability and duration
 
-## Remediation Service
-* Multiple Actions: restart_service, scale_instances, scale_memory, clear_cache, kill_connections
+State Management: Tracks remediation progress and prevents conflicts
 
-* Configurable Success: Each action has configurable success probability and duration
+Audit Logging: Complete incident tracking and remediation history
 
-* State Management: Tracks remediation progress and prevents conflicts
+Log Analysis Service
+Pattern Recognition: Identifies error patterns from service logs
 
-## Log Analysis Service
-* Pattern Recognition: Identifies error patterns from service logs
+Root Cause Analysis: Determines probable causes of service issues
 
-* Root Cause Analysis: Determines probable causes of service issues
+Action Recommendations: Suggests appropriate remediation strategies
 
-* Action Recommendations: Suggests appropriate remediation strategies
+Error Correlation: Links related errors across service logs
 
-## Setup & Installation
-### Prerequisites
-* Node.js 22+
+Setup & Installation
+Prerequisites
+Node.js 18+
 
-* npm or yarn package manager
+npm or yarn package manager
 
-## Local Development
-
-```bash
+Local Development
+bash
 # Clone the repository
 git clone <repository-url>
 cd airs-backend
@@ -280,25 +260,19 @@ npm start
 
 # Development mode with auto-reload
 npm run dev
-```
-
-### Production Deployment
-```bash
+Production Deployment
+bash
 # Set environment to production
 export NODE_ENV=production
 
 # Start the application
 npm start
-```
-
-## Docker Deployment
-### Build Image
-``` bash
+Docker Deployment
+Build Image
+bash
 docker build -t airs-backend:latest .
-```
-
-### Run Container
-```bash
+Run Container
+bash
 # Using environment file
 docker run -p 5000:5000 --env-file .env airs-backend:latest
 
@@ -307,19 +281,15 @@ docker run -p 5000:5000 \
   -e LANGFLOW_API_KEY="your_key" \
   -e WATCHMAN_BASE_URL="http://localhost:5001" \
   airs-backend:latest
-```
-
-### Development with Hot Reload
-``` bash
+Development with Hot Reload
+bash
 docker run -p 5000:5000 \
   -v $(pwd):/app \
   -v /app/node_modules \
   --env-file .env \
   airs-backend:latest npm run dev
-```
-
-### Container Management
-```bash
+Container Management
+bash
 # View logs
 docker logs airs-backend
 
@@ -331,12 +301,20 @@ docker rm airs-backend
 
 # Health check
 docker inspect --format='{{.State.Health.Status}}' airs-backend
-```
 
-## Environment Variables
-Create a `.env` file with the following variables:
+# Execute commands in container
+docker exec -it airs-backend sh
+Cleanup Commands
+bash
+# Remove all stopped containers
+docker container prune
 
-```env
+# Remove unused images
+docker image prune
+Environment Variables
+Create a .env file with the following variables:
+
+env
 # API Configuration
 LANGFLOW_API_KEY=your_langflow_api_key_here
 
@@ -351,13 +329,11 @@ CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 # Server Configuration
 PORT=5000
 NODE_ENV=development
-```
+Development Guide
+Adding New Services
+Update the service initialization in models/Service.js:
 
-## Development Guide
-### Adding New Services
-Update the service initialization in `models/Service.js`:
-
-```javascript
+javascript
 function initializeServices() {
   services = [
     new Service('S1', 'Payment Gateway', 'critical'),
@@ -366,12 +342,10 @@ function initializeServices() {
     new Service('S7', 'New Microservice', 'healthy'),
   ];
 }
-```
+Adding New Metric Types
+Update thresholds in config/constants.js:
 
-### Adding New Metric Types
-Update thresholds in `config/constants.js`:
-
-```javascript
+javascript
 const THRESHOLDS = {
   // Existing thresholds
   cpu: { warn: 70, crit: 85 },
@@ -379,53 +353,58 @@ const THRESHOLDS = {
   // Add new metric
   network_throughput: { warn: 1000, crit: 2000 }
 };
-```
+Customizing Remediation Actions
+Add new actions in config/constants.js:
 
-### Customizing Remediation Actions
-Add new actions in `config/constants.js`:
-
-```javascript
+javascript
 const REMEDIATION_CONFIG = {
   // Existing actions
   restart_service: { time: 4000, successProbability: 0.9 },
   // Add new action
   redeploy_service: { time: 8000, successProbability: 0.95 }
 };
-```
+Adding New Error Patterns
+Update error patterns in config/constants.js:
 
-## Troubleshooting
-### Common Issues
+javascript
+const ERROR_PATTERNS = {
+  // Existing patterns
+  high_cpu: ["CPU utilization exceeding thresholds"],
+  // Add new pattern
+  disk_issues: ["Disk space exhausted", "I/O latency high"]
+};
+Troubleshooting
+Common Issues
 Port 5000 Already in Use
 
-```bash
+bash
 # Use different port
 docker run -p 5001:5000 airs-backend:latest
 # Or change PORT in .env file
-```
-### Environment Variables Not Loading
+Environment Variables Not Loading
 
-```bash
+bash
 # Verify .env file exists in project root
 # Check variable names match exactly
 # Restart application after changes
-```
-
 Docker Build Fails
 
-```bash
+bash
 # Clear Docker cache
 docker build --no-cache -t airs-backend:latest .
-```
+Remediation Actions Not Working
 
-### Debug Mode
+bash
+# Check service is in critical state
+# Verify service.awaitingRemediation is true
+# Ensure remediation action is valid
+Debug Mode
 Enable debug logging by setting environment variable:
 
-```bash
+bash
 DEBUG=true node server.js
-```
-
-### Logs & Debugging
-```bash
+Logs & Debugging
+bash
 # View application logs
 docker logs airs-backend
 
@@ -434,39 +413,110 @@ curl http://localhost:5000/api/health
 
 # Verify all services are running
 curl http://localhost:5000/api/services
-```
 
-### Default Service Configuration
+# Check specific service metrics
+curl http://localhost:5000/api/services/S1/metrics
+Performance Monitoring
+bash
+# Check system resources
+docker stats airs-backend
 
-| Service               | Initial Status | Description                          |
-|-----------------------|----------------|--------------------------------------|
-| Payment Gateway (S1)  | `critical`     | Starts in critical state for demo    |
-| User Auth API (S2)    | `healthy`      | Normal operation                     |
-| Inventory Service (S3)| `warning`      | Minor issues detected                |
-| Reporting Engine (S4) | `healthy`      | Normal operation                     |
-| Search Indexer (S5)   | `healthy`      | Normal operation                     |
-| Log Ingestion (S6)    | `healthy`      | Normal operation                     |
+# Monitor API response times
+curl -w "@curl-format.txt" http://localhost:5000/api/health
+Default Service Configuration
+Service	Initial Status	Description
+Payment Gateway (S1)	critical	Starts in critical state for demo
+User Auth API (S2)	healthy	Normal operation
+Inventory Service (S3)	warning	Minor issues detected
+Reporting Engine (S4)	healthy	Normal operation
+Search Indexer (S5)	healthy	Normal operation
+Log Ingestion (S6)	healthy	Normal operation
+Configuration Constants
+Thresholds
+javascript
+const THRESHOLDS = {
+  cpu: { warn: 70, crit: 85 },
+  memory: { warn: 75, crit: 90 },
+  latency: { warn: 300, crit: 500 },
+  error_rate: { warn: 5, crit: 10 }
+};
+Remediation Actions
+javascript
+const REMEDIATION_CONFIG = {
+  restart_service: { time: 4000, successProbability: 0.9 },
+  scale_instances: { time: 6000, successProbability: 0.8 },
+  scale_memory: { time: 5000, successProbability: 0.85 },
+  clear_cache: { time: 3000, successProbability: 0.7 },
+  kill_connections: { time: 3500, successProbability: 0.75 }
+};
+Load Intensities
+javascript
+const LOAD_INTENSITIES = {
+  low: 1.5,
+  medium: 2.5,
+  high: 4.0,
+  extreme: 6.0
+};
+Security Features
+Helmet.js: Security headers protection
 
-### Security Features
-* Helmet.js: Security headers protection
-* CORS Configuration: Controlled cross-origin access
-* Input Validation: API endpoint input sanitization
-* Non-root Execution: Docker containers run as non-root user
-* Environment Variables: Sensitive data protection
+CORS Configuration: Controlled cross-origin access
 
+Input Validation: API endpoint input sanitization
 
-### License
+Non-root Execution: Docker containers run as non-root user
+
+Environment Variables: Sensitive data protection
+
+Rate Limiting: Built-in request throttling
+
+Input Sanitization: Protection against injection attacks
+
+API Testing Examples
+Complete Test Suite
+bash
+# Test health endpoint
+curl http://localhost:5000/api/health
+
+# List all services
+curl http://localhost:5000/api/services
+
+# Get service metrics
+curl http://localhost:5000/api/services/S1/metrics
+
+# Simulate load on service
+curl -X POST http://localhost:5000/api/services/S1/simulate-load \
+  -H "Content-Type: application/json" \
+  -d '{"intensity": "high"}'
+
+# Trigger remediation
+curl -X POST http://localhost:5000/api/services/S1/remediate \
+  -H "Content-Type: application/json" \
+  -d '{"action": "restart_service", "reason": "Testing API"}'
+
+# Reset all services
+curl -X POST http://localhost:5000/api/services/reset
+License
 MIT License - see LICENSE file for details
 
-### Contributing
-* Fork the repository
-* Create a feature branch (git checkout -b feature/amazing-feature)
-* Commit your changes (git commit -m 'Add amazing feature')
-* Push to the branch (git push origin feature/amazing-feature)
-* Open a Pull Request
+Contributing
+Fork the repository
 
-### Support
+Create a feature branch (git checkout -b feature/amazing-feature)
+
+Commit your changes (git commit -m 'Add amazing feature')
+
+Push to the branch (git push origin feature/amazing-feature)
+
+Open a Pull Request
+
+Support
 For issues and questions:
-1. Check the troubleshooting section above
-2. Review API documentation
-3. Open an issue in the repository
+
+Check the troubleshooting section above
+
+Review API documentation
+
+Open an issue in the repository
+
+Check application logs for detailed error information

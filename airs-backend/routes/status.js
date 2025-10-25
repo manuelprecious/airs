@@ -2,10 +2,17 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 require('dotenv').config();
-const LANGFLOW_API_KEY = process.env.LANGFLOW_API_KEY;
-const WATCHMAN_BASE_URL = process.env.WATCHMAN_BASE_URL || 'http://localhost:5001';
-const LANGFLOW_BASE_URL = process.env.LANGFLOW_BASE_URL || 'http://localhost:7860';
-const LANGFLOW_FLOW_ID = process.env.LANGFLOW_FLOW_ID;
+
+const { WATCHMAN_URL, LANGFLOW_URL } = require('../config/constants');
+
+
+// Cache for Langflow status to avoid frequent checks
+let langflowStatusCache = {
+  connected: false,
+  lastChecked: null,
+  error: null
+};
+const CACHE_DURATION = 30000; // 30 seconds
 
 // Get comprehensive system status
 router.get('/system-status', async (req, res) => {
@@ -13,7 +20,7 @@ router.get('/system-status', async (req, res) => {
     // Get watchman service status
     const watchmanStatus = await getWatchmanStatus();
 
-    // Get Langflow status using the same logic as frontend chat
+    // Get Langflow status with caching
     const langflowStatus = await getLangflowStatus();
 
     // Get remediation stats from watchman if available
@@ -38,7 +45,7 @@ router.get('/system-status', async (req, res) => {
 async function getWatchmanStatus() {
   try {
     // Try to connect to watchman service on port 5001
-    const response = await axios.get(`${WATCHMAN_BASE_URL}/status`, { timeout: 5000 });
+    const response = await axios.get(`${WATCHMAN_URL}/status`, { timeout: 5000 });
     return {
       running: true,
       ...response.data
@@ -54,42 +61,60 @@ async function getWatchmanStatus() {
 }
 
 async function getLangflowStatus() {
-  try {
-    // Use the same test as ChatInterface - test endpoint for faster response
-    const response = await axios.post(
-      `${LANGFLOW_BASE_URL}/api/v1/run/${LANGFLOW_FLOW_ID}`,
-      {
-        output_type: "chat",
-        input_type: "chat",
-        input_value: "test",
-        session_id: "status-check-" + Date.now()
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${LANGFLOW_API_KEY}`,
-          'x-api-key': LANGFLOW_API_KEY
-        },
-        timeout: 10000
-      }
-    );
+  // Return cached result if it's recent enough
+  if (langflowStatusCache.lastChecked &&
+    (Date.now() - new Date(langflowStatusCache.lastChecked).getTime()) < CACHE_DURATION) {
+    return langflowStatusCache;
+  }
 
-    return {
-      connected: response.status === 200,
-      lastChecked: new Date().toISOString()
+  try {
+    // Use the CORRECT health check endpoint - much lighter than running a flow
+    const response = await axios.get(`${LANGFLOW_URL}/health`, {
+      timeout: 5000 // 5 second timeout for health check
+    });
+
+    const isConnected = response.status === 200;
+
+    // Update cache
+    langflowStatusCache = {
+      connected: isConnected,
+      lastChecked: new Date().toISOString(),
+      error: null
     };
+
+    return langflowStatusCache;
   } catch (error) {
-    return {
-      connected: false,
-      error: error.message,
-      lastChecked: new Date().toISOString()
-    };
+    // If /health fails, try the health_check endpoint (some Langflow versions)
+    try {
+      const fallbackResponse = await axios.get(`${LANGFLOW_URL}/health_check`, {
+        timeout: 5000
+      });
+
+      const isConnected = fallbackResponse.status === 200;
+
+      langflowStatusCache = {
+        connected: isConnected,
+        lastChecked: new Date().toISOString(),
+        error: null
+      };
+
+      return langflowStatusCache;
+    } catch (fallbackError) {
+      // Both health checks failed
+      langflowStatusCache = {
+        connected: false,
+        lastChecked: new Date().toISOString(),
+        error: `Health check failed: ${error.message}`
+      };
+
+      return langflowStatusCache;
+    }
   }
 }
 
 async function getRemediationStats() {
   try {
-    const response = await axios.get(`${WATCHMAN_BASE_URL}/remediation-stats`, { timeout: 5000 });
+    const response = await axios.get(`${WATCHMAN_URL}/remediation-stats`, { timeout: 5000 });
     return response.data;
   } catch (error) {
     // Return REAL default stats if watchman is unavailable - all zeros

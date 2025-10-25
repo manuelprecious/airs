@@ -6,11 +6,25 @@ const THRESHOLDS = {
   error_rate: { warn: 5, crit: 10 }
 };
 
+const SERVICE_URLS = {
+  // Backend API configuration
+  BACKEND_URL: process.env.BACKEND_URL || "http://localhost:5000",
+
+  // Watchman service configuration  
+  WATCHMAN_URL: process.env.WATCHMAN_URL || "http://localhost:5001",
+
+  // Langflow AI configuration
+  LANGFLOW_URL: process.env.LANGFLOW_URL || "http://localhost:7860",
+  LANGFLOW_API_KEY: process.env.LANGFLOW_API_KEY,
+  LANGFLOW_HEALTH_FLOW_ID: process.env.LANGFLOW_HEALTH_FLOW_ID,
+  LANGFLOW_REMEDIATION_FLOW_ID: process.env.LANGFLOW_REMEDIATION_FLOW_ID,
+};
+
 // Error patterns for log analysis
 const ERROR_PATTERNS = {
   high_cpu: [
     "CPU utilization exceeding thresholds",
-    "Garbage collection overhead", 
+    "Garbage collection overhead",
     "Thread pool exhaustion",
     "High computational load detected"
   ],
@@ -22,7 +36,7 @@ const ERROR_PATTERNS = {
   ],
   database_issues: [
     "Connection pool exhausted",
-    "Database timeout", 
+    "Database timeout",
     "Deadlock detected",
     "Query execution timeout",
     "Transaction rollback"
@@ -56,5 +70,6 @@ module.exports = {
   THRESHOLDS,
   ERROR_PATTERNS,
   REMEDIATION_CONFIG,
-  LOAD_INTENSITIES
+  LOAD_INTENSITIES,
+  ...SERVICE_URLS
 };

@@ -1,7 +1,7 @@
 const axios = require('axios');
 const { randomUUID } = require('crypto');
 const logger = require('../utils/logger');
-const { LANGFLOW_URL } = require('../config/constants');
+const { LANGFLOW_URL, LANGFLOW_REMEDIATION_FLOW_ID } = require('../config/constants');
 
 class AutoRemediator {
   constructor(poller) {
@@ -16,7 +16,7 @@ class AutoRemediator {
       }
     });
     
-    this.flowId = 'a9fa6d4b-4f83-41e5-8072-a35c313648da'; // New automated flow ID
+    this.flowId = LANGFLOW_REMEDIATION_FLOW_ID; // New automated flow ID
     
     logger.info(`✅ AutoRemediator initialized - Will trigger automated Langflow flow: ${this.flowId}`);
   }
@@ -102,7 +102,7 @@ class AutoRemediator {
       logger.info(`Calling automated Langflow API: ${url}`);
       const response = await this.httpClient.post(url, payload, {
         headers: {
-          'x-api-key': 'sk-uTXm3_qimgYgVQdhqhj8nYRH3fmHjROVck5CAJZ5UmU',
+          'x-api-key': process.env.LANGFLOW_API_KEY,
           'Content-Type': 'application/json'
         },
         timeout: 180000

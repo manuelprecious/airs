@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Zap,
   HardHat,
@@ -27,7 +27,22 @@ const MainDashboardView = ({
   refreshData,
 }) => {
   const [selectedTab, setSelectedTab] = useState("Critical");
+  const [localIsLoading, setLocalIsLoading] = useState(false);
   
+  // NEW: Optimized refresh handler
+  const handleRefresh = useCallback(async () => {
+    if (localIsLoading) return; // Prevent multiple clicks
+    
+    setLocalIsLoading(true);
+    try {
+      await refreshData(); // Wait for the refresh to complete
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    } finally {
+      setLocalIsLoading(false);
+    }
+  }, [refreshData, localIsLoading]);
+
   // NEW: Dynamic system status state
   const [systemStatus, setSystemStatus] = useState({
     agentsActive: false,
@@ -42,10 +57,13 @@ const MainDashboardView = ({
 
   // NEW: Fetch system status from backend
   useEffect(() => {
+    let isMounted = true;
+    let intervalId;
+
     const fetchSystemStatus = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/system-status');
-        if (response.ok) {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/system-status`);
+        if (response.ok && isMounted) {
           const data = await response.json();
           
           setSystemStatus({
@@ -60,19 +78,24 @@ const MainDashboardView = ({
           });
         }
       } catch (error) {
-        console.error('Failed to fetch system status:', error);
-        setSystemStatus(prev => ({
-          ...prev,
-          overallStatus: 'error'
-        }));
+        if (isMounted) {
+          console.error('Failed to fetch system status:', error);
+          setSystemStatus(prev => ({
+            ...prev,
+            overallStatus: 'error'
+          }));
+        }
       }
     };
 
     // Fetch immediately and then every 10 seconds
     fetchSystemStatus();
-    const interval = setInterval(fetchSystemStatus, 10000);
+    intervalId = setInterval(fetchSystemStatus, 10000);
     
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, []);
 
   // Move ALL hooks to the top - they must be called in the same order every render
@@ -124,8 +147,11 @@ const MainDashboardView = ({
     return services.filter(s => s.status === 'REMEDIATING').length;
   }, [services]);
 
+  // Use combined loading state
+  const isCurrentlyLoading = isLoading || localIsLoading;
+
   // Now do conditional rendering AFTER all hooks
-  if (isLoading) {
+  if (isLoading && !localIsLoading) {
     return (
       <div className="placeholder-container">
         <div className="placeholder-content">
@@ -145,10 +171,12 @@ const MainDashboardView = ({
           <h2 className="placeholder-title">Connection Error</h2>
           <p className="placeholder-text">{error}</p>
           <button
-            onClick={refreshData}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            onClick={handleRefresh}
+            className="refresh-data-btn-enhanced mt-4"
+            disabled={isCurrentlyLoading}
           >
-            Try Again
+            <RefreshCw size={18} className={isCurrentlyLoading ? "animate-spin" : ""} />
+            {isCurrentlyLoading ? "Refreshing..." : "Try Again"}
           </button>
         </div>
       </div>
@@ -165,12 +193,12 @@ const MainDashboardView = ({
             No services found in the backend system.
           </p>
           <button
-            onClick={refreshData}
-            className="refresh-data-btn"
-            title="Refresh data from backend"
+            onClick={handleRefresh}
+            className="refresh-data-btn-enhanced mt-4"
+            disabled={isCurrentlyLoading}
           >
-            <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
-            Refresh Data
+            <RefreshCw size={18} className={isCurrentlyLoading ? "animate-spin" : ""} />
+            {isCurrentlyLoading ? "Refreshing..." : "Refresh Data"}
           </button>
         </div>
       </div>
@@ -180,16 +208,20 @@ const MainDashboardView = ({
   // Main render - all hooks have been called consistently
   return (
     <div className="dashboard-grid-container">
-      {/* Header with refresh button */}
+      {/* Header with IMPROVED refresh button */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="main-title">AIRS Agent Operations Dashboard</h1>
         <button
-          onClick={refreshData}
-          className="refresh-data-btn"
+          onClick={handleRefresh}
+          disabled={isCurrentlyLoading}
+          className="refresh-data-btn-enhanced"
           title="Refresh data from backend"
         >
-          <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
-          Refresh Data
+          <RefreshCw 
+            size={18} 
+            className={isCurrentlyLoading ? "animate-spin" : ""} 
+          />
+          {isCurrentlyLoading ? "Refreshing..." : "Refresh Data"}
         </button>
       </div>
 
@@ -309,7 +341,7 @@ const MainDashboardView = ({
       {/* Service Cards */}
       <div className="section-title-bar">
         <h2 className="section-title">Service Health Status</h2>
-        <span className="text-sm text-secondary">
+        <span className="section-timestamp">
           Live from backend • {new Date().toLocaleTimeString()}
         </span>
       </div>
@@ -365,4 +397,4 @@ const MainDashboardView = ({
   );
 };
 
-export default MainDashboardView;
+export default React.memo(MainDashboardView);

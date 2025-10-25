@@ -3,6 +3,7 @@ from typing import Any, Optional
 import requests
 import re
 import json
+from urllib.parse import urlparse
 from langflow.custom import Component
 from langflow.io import MessageTextInput, Output
 from langflow.schema import Message
@@ -15,6 +16,12 @@ class ExecuteRemediation(Component):
     name = "ExecuteRemediation"
 
     inputs = [
+        MessageTextInput(
+            name="backend_url",
+            display_name="Backend API URL",
+            info="Base URL for AIRS backend API (e.g., http://localhost:5000)",
+            value="http://localhost:5000",
+        ),
         MessageTextInput(
             name="remediation_command",
             display_name="Remediation Command",
@@ -34,8 +41,39 @@ class ExecuteRemediation(Component):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.backend_url = "http://localhost:5000"
         self.timeout = 30  # Longer timeout for remediation actions
+
+    def _validate_backend_url(self, url: str) -> str:
+        """Validate and sanitize backend URL"""
+        if not url:
+            raise ValueError("Backend URL cannot be empty")
+        
+        # Basic URL format validation
+        if not re.match(r'^https?://', url):
+            raise ValueError("Backend URL must start with http:// or https://")
+        
+        parsed = urlparse(url)
+        
+        # Security validations
+        if parsed.scheme not in ['http', 'https']:
+            raise ValueError("Invalid URL scheme. Must be http or https")
+        
+        if not parsed.hostname:
+            raise ValueError("Invalid URL: missing hostname")
+        
+        # Prevent credential leakage in URLs
+        if parsed.username or parsed.password:
+            raise ValueError("URL must not contain username or password")
+        
+        # Prevent potentially dangerous URL components
+        if parsed.query or parsed.fragment:
+            raise ValueError("URL must not contain query parameters or fragments")
+        
+        # Basic port validation
+        if parsed.port and (parsed.port < 1 or parsed.port > 65535):
+            raise ValueError("Invalid port number")
+        
+        return url.rstrip('/')
 
     def _parse_remediation_command(self, user_input: str) -> tuple[str, str, str]:
         """Parse remediation command to extract service ID, action, and reason"""
@@ -82,9 +120,11 @@ class ExecuteRemediation(Component):
 
     def _make_api_call(self, endpoint: str, method: str = "GET", data: Optional[dict] = None) -> Any:
         """Make API call to backend with error handling"""
+        # Validate URL first
+        backend_url = self._validate_backend_url(self.backend_url)
+        url = f"{backend_url}/api{endpoint}"
+        
         try:
-            url = f"{self.backend_url}/api{endpoint}"
-            
             if method.upper() == "POST":
                 # For POST requests, data should not be None
                 if data is None:
@@ -96,18 +136,26 @@ class ExecuteRemediation(Component):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.ConnectionError:
-            raise ConnectionError(f"Cannot connect to backend at {self.backend_url}")
+            # Sanitized error message - no URL exposure
+            raise ConnectionError("Cannot connect to AIRS backend service")
         except requests.exceptions.Timeout:
             raise TimeoutError(f"Backend request timed out after {self.timeout} seconds")
         except requests.exceptions.HTTPError as e:
+            # Sanitized error messages
             if e.response.status_code == 404:
-                raise ValueError(f"Service not found: {endpoint}")
+                raise ValueError("Service not found")
             elif e.response.status_code == 409:
-                error_data = e.response.json()
-                raise Exception(f"Remediation conflict: {error_data.get('error', 'Unknown conflict')}")
-            raise Exception(f"Backend returned error: {e.response.status_code} - {e.response.text}")
+                # Try to get error message from response, but sanitize it
+                try:
+                    error_data = e.response.json()
+                    error_msg = error_data.get('error', 'Remediation conflict')
+                    raise Exception(f"Remediation conflict: {error_msg}")
+                except:
+                    raise Exception("Remediation conflict: Another operation is in progress")
+            raise Exception(f"Backend returned error: {e.response.status_code}")
         except Exception as e:
-            raise Exception(f"Unexpected error calling backend: {str(e)}")
+            # Generic error without backend details
+            raise Exception(f"Error communicating with backend service")
 
     def execute_remediation_action(self) -> Message:
         """Execute remediation action and return result"""

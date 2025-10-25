@@ -1,4 +1,5 @@
 const logger = require('../utils/logger');
+const { BACKEND_URL } = require('../config/constants');
 
 class TokenManager {
     constructor() {
@@ -108,7 +109,7 @@ class TokenManager {
             // Execute directly via backend API
             const axios = require('axios');
             const response = await axios.post(
-                `http://localhost:5000/api/services/${serviceId}/remediate`,
+                `${BACKEND_URL}/api/services/${serviceId}/remediate`,
                 {
                     action: action,
                     reason: 'Fallback remediation - AI rate limited'

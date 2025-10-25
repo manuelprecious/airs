@@ -3,6 +3,7 @@ from typing import Any
 import requests
 import re
 import json
+from urllib.parse import urlparse
 from langflow.custom import Component
 from langflow.io import MessageTextInput, Output
 from langflow.schema import Message
@@ -15,6 +16,12 @@ class RemediationVerifier(Component):
     name = "RemediationVerifier"
 
     inputs = [
+        MessageTextInput(
+            name="backend_url",
+            display_name="Backend API URL",
+            info="Base URL for AIRS backend API (e.g., http://localhost:5000)",
+            value="http://localhost:5000",
+        ),
         MessageTextInput(
             name="verification_request",
             display_name="Verification Request",
@@ -34,8 +41,39 @@ class RemediationVerifier(Component):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.backend_url = "http://localhost:5000"
         self.timeout = 10
+
+    def _validate_backend_url(self, url: str) -> str:
+        """Validate and sanitize backend URL"""
+        if not url:
+            raise ValueError("Backend URL cannot be empty")
+        
+        # Basic URL format validation
+        if not re.match(r'^https?://', url):
+            raise ValueError("Backend URL must start with http:// or https://")
+        
+        parsed = urlparse(url)
+        
+        # Security validations
+        if parsed.scheme not in ['http', 'https']:
+            raise ValueError("Invalid URL scheme. Must be http or https")
+        
+        if not parsed.hostname:
+            raise ValueError("Invalid URL: missing hostname")
+        
+        # Prevent credential leakage in URLs
+        if parsed.username or parsed.password:
+            raise ValueError("URL must not contain username or password")
+        
+        # Prevent potentially dangerous URL components
+        if parsed.query or parsed.fragment:
+            raise ValueError("URL must not contain query parameters or fragments")
+        
+        # Basic port validation
+        if parsed.port and (parsed.port < 1 or parsed.port > 65535):
+            raise ValueError("Invalid port number")
+        
+        return url.rstrip('/')
 
     def _extract_service_id(self, user_input: str) -> str:
         """Extract service ID from natural language input"""
@@ -62,21 +100,27 @@ class RemediationVerifier(Component):
 
     def _make_api_call(self, endpoint: str) -> Any:
         """Make API call to backend with error handling"""
+        # Validate URL first
+        backend_url = self._validate_backend_url(self.backend_url)
+        url = f"{backend_url}/api{endpoint}"
+        
         try:
-            url = f"{self.backend_url}/api{endpoint}"
             response = requests.get(url, timeout=self.timeout)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.ConnectionError:
-            raise ConnectionError(f"Cannot connect to backend at {self.backend_url}")
+            # Sanitized error message - no URL exposure
+            raise ConnectionError("Cannot connect to AIRS backend service")
         except requests.exceptions.Timeout:
             raise TimeoutError(f"Backend request timed out after {self.timeout} seconds")
         except requests.exceptions.HTTPError as e:
+            # Sanitized - only status code, no URL
             if e.response.status_code == 404:
-                raise ValueError(f"Service not found: {endpoint}")
+                raise ValueError("Service not found")
             raise Exception(f"Backend returned error: {e.response.status_code}")
         except Exception as e:
-            raise Exception(f"Unexpected error calling backend: {str(e)}")
+            # Generic error without backend details
+            raise Exception(f"Error communicating with backend service")
 
     def _assess_remediation_success(self, service_data: dict[str, Any]) -> dict[str, Any]:
         """Assess whether remediation was successful based on service state and metrics"""
@@ -158,7 +202,7 @@ class RemediationVerifier(Component):
             service_data = self._make_api_call(f"/services/{service_id}/metrics")
             
             if not isinstance(service_data, dict):
-                raise ValueError("Failed to get service data for verification")
+                raise ValueError("Invalid response format from backend")
             
             service_name = service_data.get('name', 'Unknown Service')
             
